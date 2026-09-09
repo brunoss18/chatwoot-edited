@@ -1,0 +1,12 @@
+{
+  "name": "focoh-kanban-db-tests",
+  "private": true,
+  "type": "module",
+  "description": "Harness offline das travas clinicas do Kanban Focoh (Postgres embarcado via PGlite).",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
+  }
+}
