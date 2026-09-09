@@ -1,9 +1,14 @@
 import { ref, computed } from 'vue';
 import { createClient } from '@supabase/supabase-js';
+import FocohSupabaseTokenAPI from 'dashboard/api/focohSupabaseToken';
 
 /**
  * Ponte entre o board Vue e o Supabase, que é o sistema-fonte dos dados
  * clínicos. Nada de clínico é replicado no Postgres do Chatwoot.
+ *
+ * Autenticação: o Rails assina um JWT curto para o usuário logado, com o papel
+ * clínico em `app_metadata.role` (Focoh::SupabaseTokenService). O segredo de
+ * assinatura fica no servidor; aqui só circulam a anon key e o token emitido.
  *
  * O board lê exclusivamente a função `cards_do_quadro()`: ela devolve flags
  * derivados e nunca o escore de risco. Ler `avaliacoes_risco` daqui não é uma
@@ -18,12 +23,46 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_FOCOH_SUPABASE_ANON_KEY;
 // "nenhum paciente internado".
 const isConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
+// Renova antes do vencimento para nenhum request sair com token que expira em
+// trânsito.
+const MARGEM_RENOVACAO_MS = 60 * 1000;
+
 let client = null;
+let tokenCache = { token: null, expiraEmMs: 0 };
+// Um board com 6 colunas dispara requests em paralelo; sem dedupe, cada um
+// pediria seu próprio token ao Rails.
+let emissaoPendente = null;
+
+const emitirToken = async () => {
+  const { data } = await FocohSupabaseTokenAPI.issue();
+  tokenCache = {
+    token: data.access_token,
+    expiraEmMs: data.expires_at * 1000,
+  };
+  return tokenCache.token;
+};
+
+const obterToken = async () => {
+  if (tokenCache.token && Date.now() < tokenCache.expiraEmMs - MARGEM_RENOVACAO_MS) {
+    return tokenCache.token;
+  }
+
+  emissaoPendente = emissaoPendente || emitirToken();
+  try {
+    return await emissaoPendente;
+  } finally {
+    emissaoPendente = null;
+  }
+};
 
 const getClient = () => {
   if (!isConfigured) return null;
   if (!client) {
-    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // `accessToken` é o contrato do supabase-js para JWT de provedor externo:
+    // ele usa este token em todo request e não tenta gerir sessão própria.
+    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      accessToken: obterToken,
+    });
   }
   return client;
 };
@@ -32,7 +71,7 @@ export function useFocohKanban() {
   const cards = ref([]);
   const isLoading = ref(false);
   const erroCarregamento = ref(null);
-  const temSessao = ref(false);
+  const erroAutenticacao = ref(null);
 
   const cardsPorFase = computed(() =>
     cards.value.reduce((acc, card) => {
@@ -48,15 +87,21 @@ export function useFocohKanban() {
 
     isLoading.value = true;
     erroCarregamento.value = null;
+    erroAutenticacao.value = null;
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      temSessao.value = Boolean(sessionData?.session);
+      // Emitido aqui, e não só dentro do callback do supabase-js, para que a
+      // falta de papel clínico chegue à tela como motivo e não como erro opaco
+      // de request. Sem papel, a RLS devolveria zero linhas — indistinguível
+      // de "clínica sem pacientes internados".
+      await obterToken();
+    } catch (error) {
+      erroAutenticacao.value = error.response?.data?.error ?? 'token_indisponivel';
+      isLoading.value = false;
+      return;
+    }
 
-      // Sem sessão a RLS devolveria zero linhas, o que na tela é
-      // indistinguível de "clínica sem pacientes". Vale parar e dizer.
-      if (!temSessao.value) return;
-
+    try {
       const { data, error } = await supabase.rpc('cards_do_quadro');
       if (error) throw error;
 
@@ -89,11 +134,11 @@ export function useFocohKanban() {
 
   return {
     isConfigured,
-    temSessao,
     cards,
     cardsPorFase,
     isLoading,
     erroCarregamento,
+    erroAutenticacao,
     carregarCards,
     moverPaciente,
   };

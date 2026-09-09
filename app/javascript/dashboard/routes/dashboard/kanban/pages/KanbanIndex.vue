@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, useTemplateRef } from 'vue';
+import { ref, computed, watch, onMounted, useTemplateRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 
@@ -14,14 +14,25 @@ const { t } = useI18n();
 
 const {
   isConfigured,
-  temSessao,
   cards,
   cardsPorFase,
   isLoading,
   erroCarregamento,
+  erroAutenticacao,
   carregarCards,
   moverPaciente,
 } = useFocohKanban();
+
+// Códigos vindos do endpoint de token do Rails. Cada um vira um motivo legível
+// na tela: quadro vazio sem explicação se confundiria com clínica sem pacientes.
+const MOTIVOS_AUTENTICACAO = {
+  clinical_role_missing: 'KANBAN.ESTADO.SEM_PAPEL_CLINICO',
+  clinical_role_invalid: 'KANBAN.ESTADO.PAPEL_CLINICO_INVALIDO',
+};
+
+const mensagemAutenticacao = computed(() =>
+  t(MOTIVOS_AUTENTICACAO[erroAutenticacao.value] ?? 'KANBAN.ESTADO.SEM_TOKEN')
+);
 
 const dialogBloqueio = useTemplateRef('dialogBloqueio');
 const mensagemBloqueio = ref('');
@@ -92,20 +103,20 @@ onMounted(carregarCards);
     </div>
 
     <div
+      v-else-if="erroAutenticacao"
+      class="flex items-center justify-center flex-1 px-6"
+    >
+      <p class="max-w-md text-center text-body-main text-n-slate-11">
+        {{ mensagemAutenticacao }}
+      </p>
+    </div>
+
+    <div
       v-else-if="erroCarregamento"
       class="flex items-center justify-center flex-1 px-6"
     >
       <p class="max-w-md text-center text-body-main text-n-ruby-11">
         {{ erroCarregamento.message }}
-      </p>
-    </div>
-
-    <div
-      v-else-if="!temSessao"
-      class="flex items-center justify-center flex-1 px-6"
-    >
-      <p class="max-w-md text-center text-body-main text-n-slate-11">
-        {{ t('KANBAN.ESTADO.SEM_SESSAO') }}
       </p>
     </div>
 

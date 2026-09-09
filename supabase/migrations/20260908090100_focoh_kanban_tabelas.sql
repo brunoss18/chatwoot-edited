@@ -47,7 +47,7 @@ create table public.laudos_semanais (
   semana_ref     date not null,
   aprovado       boolean not null default false,
   autor          text,
-  autor_user_id  uuid references auth.users (id) on delete set null,
+  autor_user_id  uuid,
   aprovado_em    timestamptz,
   criado_em      timestamptz not null default now(),
   atualizado_em  timestamptz not null default now(),
@@ -145,7 +145,7 @@ create table public.avaliacoes_risco (
   nivel             public.nivel_risco not null,
   ativo             boolean not null default true,
   ideacao_detalhes  text,
-  avaliado_por      uuid references auth.users (id) on delete set null,
+  avaliado_por      uuid,
   avaliado_em       timestamptz not null default now(),
   criado_em         timestamptz not null default now()
 );
@@ -174,7 +174,7 @@ create table public.termos_saida (
   pdf_url        text,
   assinado       boolean not null default false,
   assinado_em    timestamptz,
-  enviado_por    uuid references auth.users (id) on delete set null,
+  enviado_por    uuid,
   criado_em      timestamptz not null default now(),
   atualizado_em  timestamptz not null default now(),
 
@@ -204,7 +204,7 @@ create table public.agendamentos_visita (
   data_visita    date not null,
   visitante      text not null check (length(btrim(visitante)) > 0),
   cancelado      boolean not null default false,
-  criado_por     uuid references auth.users (id) on delete set null,
+  criado_por     uuid,
   criado_em      timestamptz not null default now(),
   atualizado_em  timestamptz not null default now()
 );
@@ -241,3 +241,23 @@ create table public.auditoria_transicoes_fase (
 
 create index auditoria_transicoes_fase_paciente_idx
   on public.auditoria_transicoes_fase (paciente_id, ocorrido_em desc);
+
+-- ----------------------------------------------------------------------------
+-- Colunas de autoria
+-- ----------------------------------------------------------------------------
+-- Guardam o claim `sub` do JWT, e NÃO têm FK para `auth.users`: a identidade
+-- vem do Chatwoot, que emite o token no backend (Focoh::SupabaseTokenService).
+-- Nesse arranjo o Supabase Auth não é o provedor, então não existe linha em
+-- `auth.users` para referenciar — uma FK ali quebraria todo insert com autoria.
+--
+-- O `sub` é um UUIDv5 derivado do id do usuário Chatwoot: estável entre sessões
+-- e reproduzível, o que mantém a auditoria rastreável sem FK.
+-- ----------------------------------------------------------------------------
+comment on column public.laudos_semanais.autor_user_id is
+  'Claim `sub` do JWT (UUIDv5 do usuário Chatwoot) de quem aprovou o laudo.';
+comment on column public.avaliacoes_risco.avaliado_por is
+  'Claim `sub` do JWT (UUIDv5 do usuário Chatwoot) de quem lançou a ficha de risco.';
+comment on column public.termos_saida.enviado_por is
+  'Claim `sub` do JWT (UUIDv5 do usuário Chatwoot) de quem anexou o termo.';
+comment on column public.agendamentos_visita.criado_por is
+  'Claim `sub` do JWT (UUIDv5 do usuário Chatwoot) de quem agendou a visita.';
