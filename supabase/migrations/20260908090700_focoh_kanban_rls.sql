@@ -1,5 +1,5 @@
 -- ============================================================================
--- Kanban Clínico Rede Focoh — 08/08 · RLS e privilégios
+-- Kanban Clínico Rede Focoh — 09/15 · RLS e privilégios
 -- ----------------------------------------------------------------------------
 -- Modelo de acesso: todo usuário logado é o role Postgres `authenticated`; o
 -- papel clínico vem do JWT em `app_metadata.role`. Portanto o privilégio

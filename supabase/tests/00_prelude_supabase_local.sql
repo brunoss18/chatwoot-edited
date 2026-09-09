@@ -14,12 +14,6 @@ create role service_role  nologin noinherit bypassrls;
 
 create schema if not exists auth;
 
--- No Supabase real esta tabela tem muitas outras colunas; o módulo só depende
--- do `id` (chaves estrangeiras de autoria).
-create table auth.users (
-  id    uuid primary key,
-  email text
-);
 
 create function auth.jwt() returns jsonb
   language sql stable

@@ -1,0 +1,52 @@
+{
+  "KANBAN": {
+    "HEADER": "Clinical Kanban",
+    "SUBTITULO": "Patient journey — Rede Focoh",
+    "COLUNA_VAZIA": "No patients in this phase",
+    "FASES": {
+      "ADMISSAO_TRIAGEM": {
+        "NOME": "Admission and Initial Triage",
+        "TEMPO": "up to 72h"
+      },
+      "FASE_1": {
+        "NOME": "Phase 1 – Self-awareness and Acceptance",
+        "TEMPO": "3 to 6 weeks"
+      },
+      "FASE_2": {
+        "NOME": "Phase 2 – Discipline and Life Project",
+        "TEMPO": "4 to 8 weeks"
+      },
+      "FASE_3": {
+        "NOME": "Phase 3 – Empathy and Self-care",
+        "TEMPO": "4 to 8 weeks"
+      },
+      "FASE_4": {
+        "NOME": "Phase 4 – Identity, Sustainment and Pre-discharge",
+        "TEMPO": "2 to 4 weeks"
+      },
+      "ALTA_TRANSICAO": {
+        "NOME": "Hospital Discharge and AMANDA Transition",
+        "TEMPO": "no set duration"
+      }
+    },
+    "CARD": {
+      "DIAS_INTERNADO": "{n} day admitted | {n} days admitted",
+      "PROTOCOLO_VERMELHO": "Red Protocol active",
+      "SEM_AVALIACAO_RISCO": "Risk assessment pending",
+      "LAUDOS_APROVADOS": "3 reports approved",
+      "LAUDOS_PENDENTES": "{n} report pending | {n} reports pending",
+      "APTO_A_AVANCAR": "Eligible to advance"
+    },
+    "ESTADO": {
+      "SEM_CONFIGURACAO": "The Clinical Kanban is not configured on this installation. Set VITE_FOCOH_SUPABASE_URL and VITE_FOCOH_SUPABASE_ANON_KEY and rebuild the frontend.",
+      "SEM_PAPEL_CLINICO": "Your user has no clinical role assigned in the Rede Focoh Kanban. Without one the board would render empty, which is not the same as having no admitted patients. Request the assignment from the Technical Coordination.",
+      "PAPEL_CLINICO_INVALIDO": "The clinical role assigned to your user is not recognised by the Kanban. This indicates a configuration error — notify the Technical Coordination.",
+      "SEM_TOKEN": "Could not authenticate with Supabase to load the board. Try again; if the problem persists, notify the Technical Coordination."
+    },
+    "BLOQUEIO": {
+      "TITULO": "Advance blocked",
+      "ENTENDI": "Got it",
+      "FALLBACK": "Avanço Bloqueado: A transição de fase exige a aprovação dos 3 Laudos Semanais (Clínico, Terapêutico e Disciplinar) e a ausência de riscos ativos. Verifique as pendências com a Coordenação Técnica."
+    }
+  }
+}

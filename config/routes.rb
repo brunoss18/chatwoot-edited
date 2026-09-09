@@ -154,6 +154,11 @@ Rails.application.routes.draw do
             end
           end
           resources :dashboard_apps, only: [:index, :show, :create, :update, :destroy]
+          namespace :focoh do
+            # Ponte de autenticação do Kanban Clínico: troca a sessão Chatwoot
+            # por um JWT Supabase curto com o papel clínico do usuário.
+            resource :supabase_token, only: [:create]
+          end
           namespace :channels do
             resource :twilio_channel, only: [:create]
           end

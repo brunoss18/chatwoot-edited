@@ -1,5 +1,5 @@
 -- ============================================================================
--- Kanban Clínico Rede Focoh — 02/08 · tabelas, constraints e índices
+-- Kanban Clínico Rede Focoh — 03/15 · tabelas, constraints e índices
 -- ----------------------------------------------------------------------------
 -- Nota de modelagem: os flags de laudo NÃO são colunas denormalizadas em
 -- `pacientes`. Eles são derivados em `public.cards_do_quadro()` a partir de
@@ -18,6 +18,10 @@ create table public.pacientes (
   data_admissao  date not null default focoh_interno.hoje(),
   arquivado      boolean not null default false,
   arquivado_em   timestamptz,
+  -- Vigilância intensiva (UPCI). Ligada pelo Gatilho 2 (Protocolo Vermelho);
+  -- declarada aqui, e não por ALTER na migration 11, para que
+  -- `cards_do_quadro()` possa expô-la.
+  upci_ativo     boolean not null default false,
   criado_em      timestamptz not null default now(),
   atualizado_em  timestamptz not null default now(),
 
@@ -29,6 +33,8 @@ comment on table public.pacientes is
   'Um paciente = um cartão do Kanban Clínico. `fase` é a coluna do board; só muda através da trava de avanço de fase (regra Anexo Fases).';
 comment on column public.pacientes.arquivado is
   'Arquivado = desligado da jornada. Só pode virar true na coluna 6 e com Termo de Saída assinado (trava jurídica).';
+comment on column public.pacientes.upci_ativo is
+  'Vigilância intensiva (UPCI) ativa. Ligada pelo Protocolo Vermelho; só a equipe clínica desliga. Não é derivada do escore de propósito: risco que baixou não encerra vigilância por conta própria.';
 
 create trigger pacientes_90_touch
   before update on public.pacientes
@@ -36,6 +42,9 @@ create trigger pacientes_90_touch
 
 create index pacientes_fase_ativos_idx
   on public.pacientes (fase) where not arquivado;
+
+create index pacientes_upci_idx
+  on public.pacientes (upci_ativo) where upci_ativo;
 
 -- ----------------------------------------------------------------------------
 -- laudos_semanais — os 3 laudos da regra Anexo Fases
@@ -47,7 +56,7 @@ create table public.laudos_semanais (
   semana_ref     date not null,
   aprovado       boolean not null default false,
   autor          text,
-  autor_user_id  uuid references auth.users (id) on delete set null,
+  autor_user_id  uuid,
   aprovado_em    timestamptz,
   criado_em      timestamptz not null default now(),
   atualizado_em  timestamptz not null default now(),
@@ -145,7 +154,7 @@ create table public.avaliacoes_risco (
   nivel             public.nivel_risco not null,
   ativo             boolean not null default true,
   ideacao_detalhes  text,
-  avaliado_por      uuid references auth.users (id) on delete set null,
+  avaliado_por      uuid,
   avaliado_em       timestamptz not null default now(),
   criado_em         timestamptz not null default now()
 );
@@ -174,7 +183,7 @@ create table public.termos_saida (
   pdf_url        text,
   assinado       boolean not null default false,
   assinado_em    timestamptz,
-  enviado_por    uuid references auth.users (id) on delete set null,
+  enviado_por    uuid,
   criado_em      timestamptz not null default now(),
   atualizado_em  timestamptz not null default now(),
 
@@ -204,7 +213,7 @@ create table public.agendamentos_visita (
   data_visita    date not null,
   visitante      text not null check (length(btrim(visitante)) > 0),
   cancelado      boolean not null default false,
-  criado_por     uuid references auth.users (id) on delete set null,
+  criado_por     uuid,
   criado_em      timestamptz not null default now(),
   atualizado_em  timestamptz not null default now()
 );
@@ -241,3 +250,23 @@ create table public.auditoria_transicoes_fase (
 
 create index auditoria_transicoes_fase_paciente_idx
   on public.auditoria_transicoes_fase (paciente_id, ocorrido_em desc);
+
+-- ----------------------------------------------------------------------------
+-- Colunas de autoria
+-- ----------------------------------------------------------------------------
+-- Guardam o claim `sub` do JWT, e NÃO têm FK para `auth.users`: a identidade
+-- vem do Chatwoot, que emite o token no backend (Focoh::SupabaseTokenService).
+-- Nesse arranjo o Supabase Auth não é o provedor, então não existe linha em
+-- `auth.users` para referenciar — uma FK ali quebraria todo insert com autoria.
+--
+-- O `sub` é um UUIDv5 derivado do id do usuário Chatwoot: estável entre sessões
+-- e reproduzível, o que mantém a auditoria rastreável sem FK.
+-- ----------------------------------------------------------------------------
+comment on column public.laudos_semanais.autor_user_id is
+  'Claim `sub` do JWT (UUIDv5 do usuário Chatwoot) de quem aprovou o laudo.';
+comment on column public.avaliacoes_risco.avaliado_por is
+  'Claim `sub` do JWT (UUIDv5 do usuário Chatwoot) de quem lançou a ficha de risco.';
+comment on column public.termos_saida.enviado_por is
+  'Claim `sub` do JWT (UUIDv5 do usuário Chatwoot) de quem anexou o termo.';
+comment on column public.agendamentos_visita.criado_por is
+  'Claim `sub` do JWT (UUIDv5 do usuário Chatwoot) de quem agendou a visita.';

@@ -1,5 +1,5 @@
 -- ============================================================================
--- Kanban Clínico Rede Focoh — 03/08 · nível de risco derivado do escore
+-- Kanban Clínico Rede Focoh — 04/15 · nível de risco derivado do escore
 -- ----------------------------------------------------------------------------
 -- Por que derivar em vez de aceitar `nivel` do cliente: se escore e nível
 -- fossem campos independentes, um lançamento com escore 18 e nível "baixo"
