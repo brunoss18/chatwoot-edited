@@ -351,6 +351,33 @@ export const actions = {
       return throwErrorMessage(error);
     }
   },
+  updateProviderConnection: ({ commit }, { id, providerConnection }) => {
+    commit(types.default.SET_INBOX_PROVIDER_CONNECTION, {
+      id,
+      providerConnection,
+    });
+  },
+  setupChannelProvider: async (_, inboxId) => {
+    try {
+      await InboxesAPI.setupChannelProvider(inboxId);
+    } catch (error) {
+      throwErrorMessage(error);
+    }
+  },
+  requestPairingCode: async (_, inboxId) => {
+    try {
+      await InboxesAPI.requestPairingCode(inboxId);
+    } catch (error) {
+      throwErrorMessage(error);
+    }
+  },
+  disconnectChannelProvider: async (_, inboxId) => {
+    try {
+      await InboxesAPI.disconnectChannelProvider(inboxId);
+    } catch (error) {
+      throwErrorMessage(error);
+    }
+  },
 };
 
 export const mutations = {
@@ -362,6 +389,15 @@ export const mutations = {
   [types.default.ADD_INBOXES]: MutationHelpers.create,
   [types.default.EDIT_INBOXES]: MutationHelpers.update,
   [types.default.DELETE_INBOXES]: MutationHelpers.destroy,
+  [types.default.SET_INBOX_PROVIDER_CONNECTION](
+    $state,
+    { id, providerConnection }
+  ) {
+    const inbox = $state.records.find(record => record.id === Number(id));
+    if (inbox) {
+      inbox.provider_connection = providerConnection;
+    }
+  },
 };
 
 export default {

@@ -29,6 +29,27 @@ class ActionCableListener < BaseListener
               })
   end
 
+  def inbox_provider_connection_updated(event)
+    inbox = event.data[:inbox]
+    account = inbox.account
+    provider_connection = event.data[:provider_connection] || {}
+
+    admin_tokens = account.administrators.pluck(:pubsub_token)
+    agent_tokens = account.agents.pluck(:pubsub_token)
+    connection = {
+      connection: provider_connection['connection'],
+      reachout_time_lock: provider_connection['reachout_time_lock'].presence,
+      new_chat_cap: provider_connection['new_chat_cap'].presence,
+      send_stall: provider_connection['send_stall'].presence
+    }.compact
+
+    broadcast(account, agent_tokens, INBOX_PROVIDER_CONNECTION_UPDATED, { inbox_id: inbox.id, provider_connection: connection })
+    broadcast(account, admin_tokens, INBOX_PROVIDER_CONNECTION_UPDATED, {
+                inbox_id: inbox.id,
+                provider_connection: connection.merge(inbox.channel.provider_connection_admin_data(provider_connection))
+              })
+  end
+
   def account_cache_invalidated(event)
     account = event.data[:account]
     tokens = user_tokens(account, account.agents)

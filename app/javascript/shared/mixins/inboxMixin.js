@@ -128,6 +128,12 @@ export default {
         this.isATwilioWhatsAppChannel
       );
     },
+    isASessionWhatsAppChannel() {
+      return (
+        this.channelType === INBOX_TYPES.WHATSAPP &&
+        this.whatsAppAPIProvider === 'baileys'
+      );
+    },
     isAnInstagramChannel() {
       return this.channelType === INBOX_TYPES.INSTAGRAM;
     },

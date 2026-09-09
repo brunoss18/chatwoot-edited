@@ -10,7 +10,12 @@ class Webhooks::WhatsappController < ActionController::API
       return
     end
 
-    Webhooks::WhatsappEventsJob.perform_later(params.to_unsafe_hash)
+    payload = params.to_unsafe_hash
+    if params[:awaitResponse].to_s == 'true'
+      Webhooks::WhatsappEventsJob.perform_now(payload)
+    else
+      Webhooks::WhatsappEventsJob.perform_later(payload)
+    end
     head :ok
   end
 

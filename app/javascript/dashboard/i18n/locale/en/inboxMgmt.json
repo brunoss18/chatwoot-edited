@@ -254,7 +254,45 @@
           "WHATSAPP_CLOUD_DESC": "Quick setup through Meta",
           "WHATSAPP_CLOUD_MANUAL_SETUP_DESC": "Manual setup with Cloud API credentials",
           "TWILIO_DESC": "Connect via Twilio credentials",
-          "360_DIALOG": "360Dialog"
+          "360_DIALOG": "360Dialog",
+          "BAILEYS": "Baileys",
+          "BAILEYS_DESC": "Connect via unofficial Baileys API"
+        },
+        "PROVIDER_URL": {
+          "LABEL": "Provider URL",
+          "PLACEHOLDER": "If the provider is not running locally, provide the URL",
+          "ERROR": "Please enter a valid URL"
+        },
+        "MARK_AS_READ": {
+          "LABEL": "Send read receipts"
+        },
+        "PRESENCE_SUBSCRIBE": {
+          "LABEL": "Show contact typing indicators"
+        },
+        "ADVANCED_OPTIONS": "Advanced options",
+        "EXTERNAL_PROVIDER": {
+          "SUBTITLE": "Click below to set up the WhatsApp channel.",
+          "LINK_BUTTON": "Link device",
+          "LINK_DEVICE_MODAL": {
+            "TITLE": "Link your device",
+            "SUBTITLE": "Link your device to this inbox. Make sure the phone number is correct before you start.",
+            "LOADING_QRCODE": "Loading QR code...",
+            "USE_PAIRING_CODE": "Link with a code instead",
+            "USE_QRCODE": "Use the QR code instead",
+            "LOADING_PAIRING_CODE": "Requesting a code...",
+            "PAIRING_CODE_STEP_1": "On the phone that will answer, open WhatsApp.",
+            "PAIRING_CODE_STEP_2": "Go to Linked devices and tap Link a device.",
+            "PAIRING_CODE_STEP_3": "Tap Link with phone number instead and enter the code.",
+            "PAIRING_CODE_EXPIRES": "The code expires in about a minute. Request a new one if it does.",
+            "RECONNECTING": "Reconnecting to WhatsApp...",
+            "LINK_DEVICE": "Link device",
+            "DISCONNECT": "Disconnect",
+            "CONNECTED": "Your device has been connected. You can now send and receive messages.",
+            "IMPORT_SESSION_TITLE": "QR code not working?",
+            "IMPORT_SESSION_SHOW_MORE": "Show more",
+            "IMPORT_SESSION_DESC": "WhatsApp may require a passkey when linking some accounts, which blocks the QR code. Install the browser extension to import a session you are already logged into on WhatsApp Web.",
+            "IMPORT_SESSION_INSTALL": "Install the extension"
+          }
         },
         "SELECT_PROVIDER": {
           "TITLE": "Select your API provider",

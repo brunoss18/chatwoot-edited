@@ -3,7 +3,7 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
   before_action :fetch_inbox, except: [:index, :create]
   before_action :fetch_agent_bot, only: [:set_agent_bot]
   # we are already handling the authorization in fetch inbox
-  before_action :check_authorization, except: [:show]
+  before_action :check_authorization, except: [:show, :setup_channel_provider, :import_whatsapp_session, :request_pairing_code]
 
   include Api::V1::Accounts::Concerns::InboxHealthManagement
   include Api::V1::Accounts::Concerns::InboxSecretManagement
@@ -82,7 +82,97 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     render status: :ok, json: { message: I18n.t('messages.inbox_deletetion_response') }
   end
 
+  def setup_channel_provider
+    channel = @inbox.channel
+    unless channel.respond_to?(:setup_channel_provider)
+      render json: { error: 'Channel does not support setup' }, status: :unprocessable_entity and return
+    end
+
+    channel.setup_channel_provider
+    head :ok
+  rescue Whatsapp::Session::Errors::Error => e
+    render_session_error(e)
+  end
+
+  def request_pairing_code
+    channel = @inbox.channel
+    unless channel.respond_to?(:request_pairing_code)
+      render json: { error: 'Channel does not support pairing by code' }, status: :unprocessable_entity and return
+    end
+
+    channel.request_pairing_code
+    head :ok
+  rescue Whatsapp::Session::Errors::Error => e
+    render_session_error(e)
+  end
+
+  def import_whatsapp_session
+    channel = @inbox.channel
+    unless channel.is_a?(Channel::Whatsapp) && channel.provider == 'baileys'
+      render json: { error: 'Session import is only supported for Baileys WhatsApp channels' },
+             status: :unprocessable_entity and return
+    end
+
+    session = import_session_params[:session].to_h
+    render json: { error: 'Session payload is required' }, status: :unprocessable_entity and return if session.blank?
+
+    channel.import_session(session: session, candidate_index: import_session_params[:candidate_index].to_i)
+    head :ok
+  rescue Whatsapp::Session::Errors::ProviderUnavailable
+    render json: { error: 'WhatsApp provider is currently unavailable. Please try again.' }, status: :service_unavailable
+  end
+
+  def disconnect_channel_provider
+    channel = @inbox.channel
+    unless channel.respond_to?(:disconnect_channel_provider)
+      render json: { error: 'Channel does not support disconnect' }, status: :unprocessable_entity and return
+    end
+
+    channel.disconnect_channel_provider
+    channel.update_provider_connection!(connection: 'close') if channel.respond_to?(:update_provider_connection!)
+    head :ok
+  rescue Whatsapp::Session::Errors::Error => e
+    render_session_error(e)
+  end
+
+  def on_whatsapp
+    params.require(:phone_number)
+    channel = @inbox.channel
+    unless channel.respond_to?(:on_whatsapp)
+      render json: { error: 'Channel does not support whatsapp check' }, status: :unprocessable_entity and return
+    end
+
+    render json: channel.on_whatsapp(params[:phone_number]), status: :ok
+  end
+
   private
+
+  def render_session_error(error)
+    operator_fixable = error.is_a?(Whatsapp::Session::Errors::Unauthorized) ||
+                       error.is_a?(Whatsapp::Session::Errors::InvalidConfig)
+    status = if error.is_a?(Whatsapp::Session::Errors::RateLimited)
+               :too_many_requests
+             elsif error.is_a?(Whatsapp::Session::Errors::ProviderUnavailable) && !operator_fixable
+               :service_unavailable
+             else
+               :unprocessable_entity
+             end
+
+    render json: { error: error.message, code: error.class::CODE }, status: status
+  end
+
+  def import_session_params
+    params.permit(
+      :candidate_index,
+      session: [
+        :registrationId, :advSecretKey, :id, :lid, :platform, :pushName, :routingInfo,
+        { noiseCandidates: %i[private public] },
+        { identityKey: %i[private public] },
+        { account: %i[details accountSignatureKey accountSignature deviceSignature] },
+        { signedPreKey: %i[keyId private public signature] }
+      ]
+    )
+  end
 
   def fetch_inbox
     @inbox = Current.account.inboxes.find(params[:id])

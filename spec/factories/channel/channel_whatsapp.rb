@@ -109,6 +109,11 @@ FactoryBot.define do
       end
     end
 
+    trait :baileys do
+      provider { 'baileys' }
+      provider_config { { 'webhook_verify_token' => 'token' } }
+    end
+
     after(:create) do |channel_whatsapp|
       create(:inbox, channel: channel_whatsapp, account: channel_whatsapp.account)
     end

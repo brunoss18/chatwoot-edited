@@ -130,6 +130,13 @@ export const useInbox = (inboxId = null) => {
     );
   });
 
+  const isASessionWhatsAppChannel = computed(() => {
+    return (
+      channelType.value === INBOX_TYPES.WHATSAPP &&
+      whatsAppAPIProvider.value === 'baileys'
+    );
+  });
+
   const isAnInstagramChannel = computed(() => {
     return channelType.value === INBOX_TYPES.INSTAGRAM;
   });
@@ -152,6 +159,7 @@ export const useInbox = (inboxId = null) => {
     isATwilioChannel,
     isAWebWidgetInbox,
     isAWhatsAppChannel,
+    isASessionWhatsAppChannel,
     isAMicrosoftInbox,
     isAGoogleInbox,
     isATwilioWhatsAppChannel,

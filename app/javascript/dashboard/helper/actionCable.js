@@ -66,8 +66,16 @@ class ActionCableConnector extends BaseActionCableConnector {
       'voice_call.outbound_connected': this.onVoiceCallOutboundConnected,
       'voice_call.outbound_accepted': this.onVoiceCallOutboundAccepted,
       'voice_call.ended': this.onVoiceCallEnded,
+      'inbox.provider_connection_updated': this.onInboxProviderConnectionUpdated,
     };
   }
+
+  onInboxProviderConnectionUpdated = data => {
+    this.app.$store.dispatch('inboxes/updateProviderConnection', {
+      id: data.inbox_id,
+      providerConnection: data.provider_connection,
+    });
+  };
 
   // eslint-disable-next-line class-methods-use-this
   onReconnect = () => {

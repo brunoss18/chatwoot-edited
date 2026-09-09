@@ -254,7 +254,45 @@
           "WHATSAPP_CLOUD_DESC": "Configuração rápida via Meta",
           "WHATSAPP_CLOUD_MANUAL_SETUP_DESC": "Configuração manual com credenciais da Cloud API",
           "TWILIO_DESC": "Conectar através de credenciais Twilio",
-          "360_DIALOG": "360Dialog"
+          "360_DIALOG": "360Dialog",
+          "BAILEYS": "Baileys",
+          "BAILEYS_DESC": "Conecte via API não oficial Baileys"
+        },
+        "PROVIDER_URL": {
+          "LABEL": "URL do provedor",
+          "PLACEHOLDER": "Se o provedor não estiver rodando localmente, informe a URL",
+          "ERROR": "Informe uma URL válida"
+        },
+        "MARK_AS_READ": {
+          "LABEL": "Enviar confirmação de leitura"
+        },
+        "PRESENCE_SUBSCRIBE": {
+          "LABEL": "Mostrar indicadores de digitação do contato"
+        },
+        "ADVANCED_OPTIONS": "Opções avançadas",
+        "EXTERNAL_PROVIDER": {
+          "SUBTITLE": "Clique abaixo para configurar o canal WhatsApp.",
+          "LINK_BUTTON": "Vincular dispositivo",
+          "LINK_DEVICE_MODAL": {
+            "TITLE": "Vincular seu dispositivo",
+            "SUBTITLE": "Vincule o celular a esta inbox. Confira o número antes de começar.",
+            "LOADING_QRCODE": "Carregando QR code...",
+            "USE_PAIRING_CODE": "Vincular com um código",
+            "USE_QRCODE": "Usar o QR code",
+            "LOADING_PAIRING_CODE": "Solicitando um código...",
+            "PAIRING_CODE_STEP_1": "No celular que vai atender, abra o WhatsApp.",
+            "PAIRING_CODE_STEP_2": "Vá em Aparelhos conectados e toque em Conectar um aparelho.",
+            "PAIRING_CODE_STEP_3": "Toque em Conectar com número de telefone e digite o código.",
+            "PAIRING_CODE_EXPIRES": "O código expira em cerca de um minuto. Peça outro se expirar.",
+            "RECONNECTING": "Reconectando ao WhatsApp...",
+            "LINK_DEVICE": "Vincular dispositivo",
+            "DISCONNECT": "Desconectar",
+            "CONNECTED": "O dispositivo foi conectado. Você já pode enviar e receber mensagens.",
+            "IMPORT_SESSION_TITLE": "QR code não funciona?",
+            "IMPORT_SESSION_SHOW_MORE": "Mostrar mais",
+            "IMPORT_SESSION_DESC": "O WhatsApp pode exigir uma chave de acesso ao vincular algumas contas, o que bloqueia o QR. Instale a extensão do navegador para importar uma sessão já aberta no WhatsApp Web.",
+            "IMPORT_SESSION_INSTALL": "Instalar a extensão"
+          }
         },
         "SELECT_PROVIDER": {
           "TITLE": "Selecione seu provedor de API",

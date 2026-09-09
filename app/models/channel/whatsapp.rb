@@ -31,8 +31,11 @@ class Channel::Whatsapp < ApplicationRecord
   encrypts :business_management_token if Chatwoot.encryption_configured?
 
   # default at the moment is 360dialog lets change later.
-  PROVIDERS = %w[default whatsapp_cloud].freeze
+  PROVIDERS = %w[default whatsapp_cloud baileys].freeze
+  REACTION_SUPPORTED_PROVIDERS = %w[whatsapp_cloud baileys].freeze
+  NEW_CHAT_CAP_KEYS = %w[capping_status ote_status mv_status total_quota used_quota cycle_start_timestamp cycle_end_timestamp].freeze
   before_validation :ensure_webhook_verify_token
+  before_destroy :disconnect_channel_provider, if: -> { provider == 'baileys' && provider_service.respond_to?(:disconnect_channel_provider) }
 
   validates :provider, inclusion: { in: PROVIDERS }
   validates :phone_number, presence: true, uniqueness: true
@@ -68,12 +71,98 @@ class Channel::Whatsapp < ApplicationRecord
     provider == 'whatsapp_cloud'
   end
 
+  def supports_reactions?
+    REACTION_SUPPORTED_PROVIDERS.include?(provider)
+  end
+
   def provider_service
-    if provider == 'whatsapp_cloud'
+    case provider
+    when 'whatsapp_cloud'
       Whatsapp::Providers::WhatsappCloudService.new(whatsapp_channel: self)
+    when 'baileys'
+      Whatsapp::Providers::WhatsappBaileysService.new(whatsapp_channel: self)
     else
       Whatsapp::Providers::Whatsapp360DialogService.new(whatsapp_channel: self)
     end
+  end
+
+  def session_family?
+    provider == 'baileys'
+  end
+
+  def session_capabilities
+    Whatsapp::Session::Registry.capabilities_for(self)
+  end
+
+  def use_internal_host?
+    provider == 'baileys' && ActiveModel::Type::Boolean.new.cast(ENV.fetch('BAILEYS_PROVIDER_USE_INTERNAL_HOST_URL', false))
+  end
+
+  def update_provider_connection!(provider_connection)
+    provider_connection ||= {}
+    normalized = provider_connection.deep_stringify_keys
+    return if normalized == self.provider_connection
+
+    assign_attributes(provider_connection: normalized)
+    Inbox.no_touching { save!(validate: false) }
+    broadcast_provider_connection_updated
+  end
+
+  def update_reachout_time_lock!(reachout_time_lock)
+    return if reachout_time_lock.nil?
+
+    with_lock do
+      update_provider_connection!((provider_connection || {}).merge('reachout_time_lock' => reachout_time_lock))
+    end
+  end
+
+  def update_new_chat_cap!(new_chat_cap)
+    return if new_chat_cap.nil?
+
+    normalized = new_chat_cap.to_h.deep_stringify_keys.slice(*NEW_CHAT_CAP_KEYS)
+    with_lock do
+      update_provider_connection!((provider_connection || {}).merge('new_chat_cap' => normalized))
+    end
+  end
+
+  def provider_connection_data
+    data = { connection: provider_connection.to_h['connection'] }
+    %w[reachout_time_lock new_chat_cap send_stall].each do |key|
+      data[key.to_sym] = provider_connection[key] if provider_connection.to_h[key].present?
+    end
+    data.merge!(provider_connection_admin_data) if Current.account_user&.administrator?
+    data
+  end
+
+  def provider_connection_admin_data(connection = provider_connection)
+    connection = connection.to_h
+    { qr_data_url: connection['qr_data_url'], error: connection['error'] }
+  end
+
+  def disconnect_channel_provider
+    provider_service.disconnect_channel_provider
+  rescue StandardError => e
+    raise unless destroyed? || @session_teardown
+
+    Rails.logger.error "Failed to disconnect channel provider: #{e.message}"
+  end
+
+  def on_whatsapp(phone_number)
+    return unless provider_service.respond_to?(:on_whatsapp)
+
+    provider_service.on_whatsapp(phone_number)
+  end
+
+  delegate :setup_channel_provider, to: :provider_service
+  delegate :import_session, to: :provider_service
+
+  def broadcast_provider_connection_updated
+    return if inbox.blank?
+
+    Rails.configuration.dispatcher.sync_dispatcher.dispatch(
+      Events::Types::INBOX_PROVIDER_CONNECTION_UPDATED, Time.zone.now,
+      inbox: inbox, provider_connection: provider_connection
+    )
   end
 
   def template_access_token
@@ -152,7 +241,7 @@ class Channel::Whatsapp < ApplicationRecord
   private
 
   def ensure_webhook_verify_token
-    provider_config['webhook_verify_token'] ||= SecureRandom.hex(16) if provider == 'whatsapp_cloud'
+    provider_config['webhook_verify_token'] ||= SecureRandom.hex(16) if provider.in?(%w[whatsapp_cloud baileys])
   end
 
   def validate_provider_config

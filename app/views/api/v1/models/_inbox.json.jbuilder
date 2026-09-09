@@ -144,6 +144,12 @@ if resource.whatsapp?
   message_templates = resource.channel.try(:message_templates)
   json.message_templates message_templates.is_a?(Array) ? message_templates : []
   json.provider_config resource.channel.try(:provider_config) if Current.account_user&.administrator?
+  if resource.channel.respond_to?(:provider_connection_data)
+    json.provider_connection resource.channel.provider_connection_data
+  end
+  if resource.channel.respond_to?(:session_capabilities)
+    json.capabilities resource.channel.session_capabilities
+  end
   if Current.account_user&.administrator? &&
      ChatwootApp.chatwoot_cloud? &&
      (resource.channel.try(:provider_config) || {}).to_h['source'] == 'embedded_signup'

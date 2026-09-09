@@ -25,6 +25,8 @@ class Conversations::MessageWindowService
     when 'Channel::Tiktok'
       tiktok_messaging_window
     when 'Channel::Whatsapp'
+      return if @conversation.inbox.channel.try(:session_family?)
+
       MESSAGING_WINDOW_24_HOURS
     when 'Channel::TwilioSms'
       twilio_messaging_window

@@ -12,6 +12,7 @@ import WhatsappChannelAPI from 'dashboard/api/channel/whatsappChannel';
 import { useAlert } from 'dashboard/composables';
 import { useInbox } from 'dashboard/composables/useInbox';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
+import WhatsappLinkDeviceModal from './components/WhatsappLinkDeviceModal.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -39,7 +40,16 @@ const {
   isAFacebookInbox,
   isATelegramChannel,
   isATwilioWhatsAppChannel,
+  isASessionWhatsAppChannel,
 } = useInbox(route.params.inbox_id);
+
+const showLinkDeviceModal = ref(false);
+const onOpenLinkDeviceModal = () => {
+  showLinkDeviceModal.value = true;
+};
+const onCloseLinkDeviceModal = () => {
+  showLinkDeviceModal.value = false;
+};
 
 const hasDuplicateInstagramInbox = computed(() => {
   const instagramId = currentInbox.value.instagram_id;
@@ -265,7 +275,15 @@ onMounted(() => {
           :inbox-id="$route.params.inbox_id"
         />
         <div
-          v-if="isAWhatsAppChannel && qrCodes.whatsapp"
+          v-if="isASessionWhatsAppChannel"
+          class="flex flex-col gap-3 items-center mt-8"
+        >
+          <NextButton @click="onOpenLinkDeviceModal">
+            {{ $t('INBOX_MGMT.ADD.WHATSAPP.EXTERNAL_PROVIDER.LINK_BUTTON') }}
+          </NextButton>
+        </div>
+        <div
+          v-if="isAWhatsAppChannel && !isASessionWhatsAppChannel && qrCodes.whatsapp"
           class="flex flex-col gap-3 items-center mt-8"
         >
           <p class="mt-2 text-sm text-n-slate-9">
@@ -338,5 +356,12 @@ onMounted(() => {
         </div>
       </div>
     </EmptyState>
+    <WhatsappLinkDeviceModal
+      v-if="isASessionWhatsAppChannel && showLinkDeviceModal"
+      :show="showLinkDeviceModal"
+      :inbox="currentInbox"
+      :on-close="onCloseLinkDeviceModal"
+      is-setup
+    />
   </div>
 </template>

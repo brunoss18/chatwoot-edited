@@ -16,6 +16,7 @@ import TextArea from 'next/textarea/TextArea.vue';
 import { sanitizeAllowedDomains } from 'dashboard/helper/URLHelper';
 import WhatsappBusinessManagementToken from './WhatsappBusinessManagementToken.vue';
 import HmacSecretKey from './components/HmacSecretKey.vue';
+import WhatsappLinkDeviceModal from '../components/WhatsappLinkDeviceModal.vue';
 
 export default {
   components: {
@@ -28,6 +29,7 @@ export default {
     TextArea,
     WhatsappBusinessManagementToken,
     HmacSecretKey,
+    WhatsappLinkDeviceModal,
   },
   mixins: [inboxMixin],
   props: {
@@ -50,6 +52,7 @@ export default {
       isUpdatingAllowedDomains: false,
       isSettingDefaults: false,
       isReconfiguring: false,
+      showLinkDeviceModal: false,
     };
   },
   validations: {
@@ -384,7 +387,22 @@ export default {
     <SmtpSettings v-if="inbox.imap_enabled" :inbox="inbox" />
   </div>
   <div v-else-if="isAWhatsAppChannel && !isATwilioChannel">
-    <div v-if="inbox.provider_config">
+    <div v-if="isASessionWhatsAppChannel" class="mb-6">
+      <SettingsFieldSection
+        :label="$t('INBOX_MGMT.ADD.WHATSAPP.EXTERNAL_PROVIDER.SUBTITLE')"
+      >
+        <NextButton class="w-fit" @click="showLinkDeviceModal = true">
+          {{ $t('INBOX_MGMT.ADD.WHATSAPP.EXTERNAL_PROVIDER.LINK_BUTTON') }}
+        </NextButton>
+      </SettingsFieldSection>
+      <WhatsappLinkDeviceModal
+        v-if="showLinkDeviceModal"
+        :show="showLinkDeviceModal"
+        :inbox="inbox"
+        :on-close="() => (showLinkDeviceModal = false)"
+      />
+    </div>
+    <div v-if="inbox.provider_config && !isASessionWhatsAppChannel">
       <!-- Embedded Signup Section -->
       <template v-if="isEmbeddedSignupWhatsApp">
         <SettingsFieldSection

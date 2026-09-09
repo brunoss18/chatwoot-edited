@@ -91,6 +91,8 @@ class Webhooks::WhatsappEventsJob < MutexApplicationJob
       service_params = { inbox: channel.inbox, params: params }
       service_params[:locked_sender_id] = locked_sender_id if locked_sender_id.present?
       Whatsapp::IncomingMessageWhatsappCloudService.new(**service_params).perform
+    when 'baileys'
+      Whatsapp::IncomingMessageBaileysService.new(inbox: channel.inbox, params: params).perform
     else
       Whatsapp::IncomingMessageService.new(inbox: channel.inbox, params: params).perform
     end

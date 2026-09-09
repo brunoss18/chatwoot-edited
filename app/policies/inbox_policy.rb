@@ -82,6 +82,14 @@ class InboxPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 
+  def disconnect_channel_provider?
+    @account_user.administrator?
+  end
+
+  def on_whatsapp?
+    true
+  end
+
   def enable_whatsapp_calling?
     @account_user.administrator?
   end

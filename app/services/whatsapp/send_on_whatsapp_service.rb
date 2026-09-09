@@ -12,7 +12,7 @@ class Whatsapp::SendOnWhatsappService < Base::SendOnChannelService
     end
     return send_contact_info_request if contact_info_request?
 
-    return send_session_message if message.conversation.can_reply?
+    return send_session_message if message.conversation.can_reply? || channel.session_family?
 
     message.update!(status: :failed, external_error: I18n.t('errors.whatsapp.message_outside_messaging_window'))
   rescue CustomExceptions::WhatsappContactInfoRequestError => e
