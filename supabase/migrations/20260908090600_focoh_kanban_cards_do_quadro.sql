@@ -1,5 +1,5 @@
 -- ============================================================================
--- Kanban Clínico Rede Focoh — 07/08 · cards_do_quadro()
+-- Kanban Clínico Rede Focoh — 08/15 · cards_do_quadro()
 -- ----------------------------------------------------------------------------
 -- Esta é a ÚNICA porta de leitura do board. O frontend chama
 -- `supabase.rpc('cards_do_quadro')` e nunca faz select em `avaliacoes_risco`
@@ -7,6 +7,7 @@
 --
 -- O que ela devolve sobre risco:
 --   protocolo_vermelho_ativo  boolean  -> vira "🔴 Protocolo Vermelho ativo"
+--   upci_ativo                boolean  -> vigilância intensiva em curso
 --   nivel_pendencia           enum     -> 'pendencia_clinica' cobre moderado E alto
 --
 -- O que ela NUNCA devolve: escore, nível de risco textual, ideacao_detalhes,
@@ -29,6 +30,7 @@ create function public.cards_do_quadro(p_incluir_arquivados boolean default fals
     laudos_pendentes          public.tipo_laudo[],
     nivel_pendencia           public.nivel_pendencia_card,
     protocolo_vermelho_ativo  boolean,
+    upci_ativo                boolean,
     pode_avancar              boolean,
     arquivado                 boolean
   )
@@ -51,6 +53,7 @@ create function public.cards_do_quadro(p_incluir_arquivados boolean default fals
         else                         'nenhuma'
       end::public.nivel_pendencia_card                                  as nivel_pendencia,
       coalesce(r.nivel <> 'baixo', false)                               as protocolo_vermelho_ativo,
+      p.upci_ativo,
       (l.aprovados = 3
         and r.nivel = 'baixo'
         and not p.arquivado

@@ -1,5 +1,5 @@
 -- ============================================================================
--- Kanban Clínico Rede Focoh — 06/08 · bloqueio de visitas nos primeiros 30 dias
+-- Kanban Clínico Rede Focoh — 07/15 · bloqueio de visitas nos primeiros 30 dias
 -- ----------------------------------------------------------------------------
 -- Regra de coluna documentada: na Fase 1 o sistema proíbe agendamento de visita
 -- nos primeiros 30 dias de internação.

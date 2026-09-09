@@ -1,5 +1,5 @@
 -- ============================================================================
--- Kanban Clínico Rede Focoh — 04/08 · TRAVA DE AVANÇO DE FASE (Anexo Fases)
+-- Kanban Clínico Rede Focoh — 05/15 · TRAVA DE AVANÇO DE FASE (Anexo Fases)
 -- ----------------------------------------------------------------------------
 -- REGRA INSTITUCIONAL:
 --   "A progressão não ocorre por tempo, pressão ou percepção subjetiva —

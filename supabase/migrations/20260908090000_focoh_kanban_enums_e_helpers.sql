@@ -1,5 +1,5 @@
 -- ============================================================================
--- Kanban Clínico Rede Focoh — 01/08 · enums, schema interno e helpers
+-- Kanban Clínico Rede Focoh — 02/15 · enums, schema interno e helpers
 -- ----------------------------------------------------------------------------
 -- Fonte funcional: documentação oficial Rede Focoh ("Jornada do Paciente",
 -- "Anexo Fases", "Protocolos Automáticos de Segurança").

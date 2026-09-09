@@ -1,5 +1,5 @@
 -- ============================================================================
--- Kanban Clínico Rede Focoh — 05/08 · TRAVA DE SAÍDA JURÍDICA (coluna 6)
+-- Kanban Clínico Rede Focoh — 06/15 · TRAVA DE SAÍDA JURÍDICA (coluna 6)
 -- ----------------------------------------------------------------------------
 -- Gatilho 4 dos Protocolos Automáticos de Segurança: o backend impede o
 -- arquivamento do paciente enquanto não houver upload do PDF assinado do termo

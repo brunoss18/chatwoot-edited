@@ -1,5 +1,5 @@
 -- ============================================================================
--- Kanban Clínico Rede Focoh — 02/08 · tabelas, constraints e índices
+-- Kanban Clínico Rede Focoh — 03/15 · tabelas, constraints e índices
 -- ----------------------------------------------------------------------------
 -- Nota de modelagem: os flags de laudo NÃO são colunas denormalizadas em
 -- `pacientes`. Eles são derivados em `public.cards_do_quadro()` a partir de
@@ -18,6 +18,10 @@ create table public.pacientes (
   data_admissao  date not null default focoh_interno.hoje(),
   arquivado      boolean not null default false,
   arquivado_em   timestamptz,
+  -- Vigilância intensiva (UPCI). Ligada pelo Gatilho 2 (Protocolo Vermelho);
+  -- declarada aqui, e não por ALTER na migration 11, para que
+  -- `cards_do_quadro()` possa expô-la.
+  upci_ativo     boolean not null default false,
   criado_em      timestamptz not null default now(),
   atualizado_em  timestamptz not null default now(),
 
@@ -29,6 +33,8 @@ comment on table public.pacientes is
   'Um paciente = um cartão do Kanban Clínico. `fase` é a coluna do board; só muda através da trava de avanço de fase (regra Anexo Fases).';
 comment on column public.pacientes.arquivado is
   'Arquivado = desligado da jornada. Só pode virar true na coluna 6 e com Termo de Saída assinado (trava jurídica).';
+comment on column public.pacientes.upci_ativo is
+  'Vigilância intensiva (UPCI) ativa. Ligada pelo Protocolo Vermelho; só a equipe clínica desliga. Não é derivada do escore de propósito: risco que baixou não encerra vigilância por conta própria.';
 
 create trigger pacientes_90_touch
   before update on public.pacientes
@@ -36,6 +42,9 @@ create trigger pacientes_90_touch
 
 create index pacientes_fase_ativos_idx
   on public.pacientes (fase) where not arquivado;
+
+create index pacientes_upci_idx
+  on public.pacientes (upci_ativo) where upci_ativo;
 
 -- ----------------------------------------------------------------------------
 -- laudos_semanais — os 3 laudos da regra Anexo Fases

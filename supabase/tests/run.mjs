@@ -112,12 +112,22 @@ const esperaSucesso = async (nome, papel, esperado, operacao) => {
 // --------------------------------------------------------------------------
 // Setup
 // --------------------------------------------------------------------------
+// A migration de extensões instala pg_net e pg_cron, o que o Postgres em WASM
+// não faz. Ela é a única pulada, e os stubs entram no lugar — ver o cabeçalho
+// de 01_prelude_stubs_pg_net_pg_cron.sql para a fronteira do teste.
+const MIGRATION_DE_EXTENSOES = 'focoh_kanban_extensions.sql';
+
 console.log('\n== Aplicando prelúdio Supabase (roles, schema auth) ==');
 await db.exec(await readFile(join(AQUI, '00_prelude_supabase_local.sql'), 'utf8'));
+await db.exec(await readFile(join(AQUI, '01_prelude_stubs_pg_net_pg_cron.sql'), 'utf8'));
 
 console.log('\n== Aplicando migrations ==');
 const migrations = (await readdir(DIR_MIGRATIONS)).filter(f => f.endsWith('.sql')).sort();
 for (const arquivo of migrations) {
+  if (arquivo.endsWith(MIGRATION_DE_EXTENSOES)) {
+    console.log(`  --  ${arquivo} (pulada: extensões nativas, stub carregado)`);
+    continue;
+  }
   await db.exec(await readFile(join(DIR_MIGRATIONS, arquivo), 'utf8'));
   console.log(`  ok  ${arquivo}`);
 }
@@ -432,6 +442,439 @@ await comoPapel('recepcao', async () => {
     }))
   );
 });
+
+// ==========================================================================
+// GATILHO 1 — Copa (restrição alimentar)
+// ==========================================================================
+console.log('\n== Gatilho 1: Copa ==');
+await esperaSucesso(
+  '"Não possui" NÃO gera alerta para a copa',
+  'enfermeiro_rt',
+  '0',
+  async assumir => {
+    await db.query(
+      `insert into public.fichas_admissao_enfermagem (paciente_id, restricao_alimentar, suite)
+       values ($1, 'Não possui', 'Suíte 12')`,
+      [PACIENTES.felipe]
+    );
+    await assumir('coordenacao_tecnica');
+    return (
+      await db.query(
+        "select count(*)::text as t from public.webhooks_saida where evento = 'copa.restricao_alimentar'"
+      )
+    ).rows[0].t;
+  }
+);
+
+await esperaSucesso(
+  'restrição preenchida gera alerta com suíte e orientação',
+  'enfermeiro_rt',
+  'copa.restricao_alimentar | Suíte 12 | Alergia a frutos do mar',
+  async assumir => {
+    await db.query(
+      `insert into public.fichas_admissao_enfermagem (paciente_id, restricao_alimentar, suite)
+       values ($1, 'Alergia a frutos do mar', 'Suíte 12')`,
+      [PACIENTES.felipe]
+    );
+    await assumir('coordenacao_tecnica');
+    const { rows } = await db.query(
+      `select evento::text as evento,
+              payload ->> 'suite' as suite,
+              payload ->> 'restricao_alimentar' as restricao
+         from public.webhooks_saida
+        where evento = 'copa.restricao_alimentar'`
+    );
+    return `${rows[0].evento} | ${rows[0].suite} | ${rows[0].restricao}`;
+  }
+);
+
+await esperaSucesso(
+  'payload da copa não carrega fase, escore nem dado clínico',
+  'enfermeiro_rt',
+  'sem dado clínico',
+  async assumir => {
+    await db.query(
+      `insert into public.fichas_admissao_enfermagem (paciente_id, restricao_alimentar, suite)
+       values ($1, 'Intolerância a lactose', 'Suíte 3')`,
+      [PACIENTES.ana]
+    );
+    await assumir('coordenacao_tecnica');
+    const { rows } = await db.query(
+      "select payload from public.webhooks_saida where evento = 'copa.restricao_alimentar'"
+    );
+    const chaves = Object.keys(rows[0].payload);
+    const proibidas = chaves.filter(c => /escore|ideacao|nivel|fase|laudo/.test(c));
+    return proibidas.length === 0 ? 'sem dado clínico' : `expôs: ${proibidas.join(', ')}`;
+  }
+);
+
+// ==========================================================================
+// GATILHO 2 — PROTOCOLO VERMELHO
+//
+// Estes são os testes exigidos pela seção de segurança clínica: falham se o
+// disparo não ocorrer no limiar, e falham se a falha de entrega não for
+// auditada.
+// ==========================================================================
+console.log('\n== Gatilho 2: Protocolo Vermelho ==');
+
+// Endpoint configurado, para exercitar o caminho de sucesso.
+const configurarEndpointPV = () =>
+  db.query(
+    `update public.config_webhooks
+        set url = 'https://exemplo.invalid/hooks/protocolo-vermelho'
+      where evento = 'protocolo_vermelho.disparo'`
+  );
+
+await esperaSucesso(
+  'ESCORE NO LIMIAR DISPARA: auditoria + outbox + UPCI ligada',
+  'medico_psiquiatra',
+  'disparos=1 webhooks=1 upci=true',
+  async assumir => {
+    await db.query(
+      'insert into public.avaliacoes_risco (paciente_id, escore) values ($1, 15)',
+      [PACIENTES.bruno]
+    );
+    await assumir('coordenacao_tecnica');
+    // Escopado por paciente: o seed já dispara o Protocolo Vermelho da Carla
+    // (escore 16), então uma contagem global contaria o alerta dela também.
+    const { rows: w } = await db.query(
+      `select count(*)::text as t from public.webhooks_saida
+        where evento = 'protocolo_vermelho.disparo' and paciente_id = $1`,
+      [PACIENTES.bruno]
+    );
+    const { rows: p } = await db.query(
+      'select upci_ativo from public.pacientes where id = $1',
+      [PACIENTES.bruno]
+    );
+    await assumir('medico_psiquiatra');
+    const { rows: d } = await db.query(
+      'select count(*)::text as t from public.protocolo_vermelho_disparos where paciente_id = $1',
+      [PACIENTES.bruno]
+    );
+    return `disparos=${d[0].t} webhooks=${w[0].t} upci=${p[0].upci_ativo}`;
+  }
+);
+
+await esperaSucesso(
+  'escore abaixo do limiar NÃO dispara',
+  'medico_psiquiatra',
+  'disparos=0',
+  async () => {
+    await db.query(
+      'insert into public.avaliacoes_risco (paciente_id, escore) values ($1, 14)',
+      [PACIENTES.bruno]
+    );
+    const { rows } = await db.query(
+      'select count(*)::text as t from public.protocolo_vermelho_disparos where paciente_id = $1',
+      [PACIENTES.bruno]
+    );
+    return `disparos=${rows[0].t}`;
+  }
+);
+
+await esperaSucesso(
+  'PAYLOAD DO ALERTA NÃO CARREGA ESCORE, NÍVEL NEM IDEAÇÃO',
+  'medico_psiquiatra',
+  'sem dado sensível',
+  async assumir => {
+    await db.query(
+      `insert into public.avaliacoes_risco (paciente_id, escore, ideacao_detalhes)
+       values ($1, 19, 'texto sensível que não pode sair por WhatsApp')`,
+      [PACIENTES.bruno]
+    );
+    await assumir('coordenacao_tecnica');
+    const { rows } = await db.query(
+      "select payload from public.webhooks_saida where evento = 'protocolo_vermelho.disparo'"
+    );
+    const serializado = JSON.stringify(rows[0].payload);
+    const vazou = /escore|ideacao|sensível|moderado|alto/i.test(serializado);
+    return vazou ? `vazou: ${serializado.slice(0, 120)}` : 'sem dado sensível';
+  }
+);
+
+await esperaSucesso(
+  'auditoria guarda o limiar que valia no momento do disparo',
+  'coordenacao_tecnica',
+  'limiar_aplicado=10',
+  async assumir => {
+    await db.query('update public.config_protocolo_vermelho set limiar_moderado = 10 where id = 1');
+    await assumir('medico_psiquiatra');
+    await db.query(
+      'insert into public.avaliacoes_risco (paciente_id, escore) values ($1, 12)',
+      [PACIENTES.bruno]
+    );
+    const { rows } = await db.query(
+      `select limiar_aplicado from public.protocolo_vermelho_disparos
+        where paciente_id = $1 order by disparado_em desc limit 1`,
+      [PACIENTES.bruno]
+    );
+    return `limiar_aplicado=${rows[0].limiar_aplicado}`;
+  }
+);
+
+await esperaSucesso(
+  'FALHA DE ENTREGA AUDITADA: endpoint não configurado aparece na view de alertas não entregues',
+  'medico_psiquiatra',
+  'estado=falhou erro=endpoint_nao_configurado nao_entregues=1',
+  async assumir => {
+    // config_webhooks.url nasce NULL: este é o estado de uma instalação nova.
+    await db.query(
+      'insert into public.avaliacoes_risco (paciente_id, escore) values ($1, 18)',
+      [PACIENTES.bruno]
+    );
+    const { rows: v } = await db.query(
+      'select count(*)::text as t from public.protocolo_vermelho_alertas_nao_entregues where paciente_id = $1',
+      [PACIENTES.bruno]
+    );
+    await assumir('coordenacao_tecnica');
+    const { rows: s } = await db.query(
+      `select estado::text as estado, ultimo_erro from public.webhooks_saida
+        where evento = 'protocolo_vermelho.disparo' order by id desc limit 1`
+    );
+    return `estado=${s[0].estado} erro=${s[0].ultimo_erro} nao_entregues=${v[0].t}`;
+  }
+);
+
+await esperaSucesso(
+  'endpoint configurado: alerta sai e fica em trânsito com POST registrado',
+  'diretor_geral',
+  'estado=em_transito posts=1',
+  async assumir => {
+    await configurarEndpointPV();
+    await assumir('medico_psiquiatra');
+    await db.query(
+      'insert into public.avaliacoes_risco (paciente_id, escore) values ($1, 18)',
+      [PACIENTES.bruno]
+    );
+    await assumir('coordenacao_tecnica');
+    const { rows: s } = await db.query(
+      `select estado::text as estado from public.webhooks_saida
+        where evento = 'protocolo_vermelho.disparo' order by id desc limit 1`
+    );
+    // O stub do pg_net é introspecção do harness, não superfície da aplicação:
+    // `authenticated` não tem (nem deve ter) USAGE no schema `net`.
+    await db.exec('reset role');
+    const { rows: n } = await db.query('select count(*)::text as t from net.requisicoes_stub');
+    return `estado=${s[0].estado} posts=${n[0].t}`;
+  }
+);
+
+await esperaSucesso(
+  'reconciliação com HTTP 200 marca entrega comprovada e limpa a view',
+  'diretor_geral',
+  'estado=enviado nao_entregues=0',
+  async assumir => {
+    await configurarEndpointPV();
+    await assumir('medico_psiquiatra');
+    await db.query(
+      'insert into public.avaliacoes_risco (paciente_id, escore) values ($1, 18)',
+      [PACIENTES.bruno]
+    );
+    await db.exec('reset role');
+    const { rows: s } = await db.query(
+      "select id, request_id from public.webhooks_saida where evento = 'protocolo_vermelho.disparo' order by id desc limit 1"
+    );
+    await db.query('insert into net._http_response (id, status_code) values ($1, 200)', [
+      s[0].request_id,
+    ]);
+    await db.query('select focoh_interno.reconciliar_webhooks()');
+    await assumir('medico_psiquiatra');
+    const { rows: v } = await db.query(
+      'select count(*)::text as t from public.protocolo_vermelho_alertas_nao_entregues where paciente_id = $1',
+      [PACIENTES.bruno]
+    );
+    await assumir('coordenacao_tecnica');
+    const { rows: f } = await db.query(
+      'select estado::text as estado from public.webhooks_saida where id = $1',
+      [s[0].id]
+    );
+    return `estado=${f[0].estado} nao_entregues=${v[0].t}`;
+  }
+);
+
+await esperaSucesso(
+  'reconciliação com HTTP 500 reenfileira para nova tentativa',
+  'diretor_geral',
+  'estado=pendente erro=http_status=500',
+  async assumir => {
+    await configurarEndpointPV();
+    await assumir('medico_psiquiatra');
+    await db.query(
+      'insert into public.avaliacoes_risco (paciente_id, escore) values ($1, 18)',
+      [PACIENTES.bruno]
+    );
+    await db.exec('reset role');
+    const { rows: s } = await db.query(
+      "select id, request_id from public.webhooks_saida where evento = 'protocolo_vermelho.disparo' order by id desc limit 1"
+    );
+    await db.query('insert into net._http_response (id, status_code) values ($1, 500)', [
+      s[0].request_id,
+    ]);
+    await db.query('select focoh_interno.reconciliar_webhooks()');
+    const { rows: f } = await db.query(
+      'select estado::text as estado, ultimo_erro from public.webhooks_saida where id = $1',
+      [s[0].id]
+    );
+    return `estado=${f[0].estado} erro=${f[0].ultimo_erro}`;
+  }
+);
+
+await esperaBloqueio(
+  'recepção tenta encerrar a vigilância intensiva (UPCI)',
+  'medico_psiquiatra',
+  { code: 'FCH08' },
+  async assumir => {
+    await db.query(
+      'insert into public.avaliacoes_risco (paciente_id, escore) values ($1, 18)',
+      [PACIENTES.bruno]
+    );
+    await assumir('recepcao');
+    await db.query('update public.pacientes set upci_ativo = false where id = $1', [
+      PACIENTES.bruno,
+    ]);
+  }
+);
+
+await esperaSucesso(
+  'recepção vê o flag de UPCI no cartão, sem saber a gravidade',
+  'medico_psiquiatra',
+  'upci_ativo=true protocolo_vermelho_ativo=true',
+  async assumir => {
+    await db.query(
+      'insert into public.avaliacoes_risco (paciente_id, escore) values ($1, 18)',
+      [PACIENTES.bruno]
+    );
+    await assumir('recepcao');
+    const { rows } = await db.query(
+      'select upci_ativo, protocolo_vermelho_ativo from public.cards_do_quadro() where id = $1',
+      [PACIENTES.bruno]
+    );
+    return `upci_ativo=${rows[0].upci_ativo} protocolo_vermelho_ativo=${rows[0].protocolo_vermelho_ativo}`;
+  }
+);
+
+// ==========================================================================
+// GATILHO 3 — cobrança cronometrada de laudos
+// ==========================================================================
+console.log('\n== Gatilho 3: cobrança de laudos ==');
+
+// A janela depende do dia da semana configurado; o teste alinha a config ao
+// hoje do harness para exercitar a lógica em qualquer dia de execução.
+const alinharJanelaCobranca = () =>
+  db.query(
+    `update public.config_cobranca_laudos
+        set dia_semana = extract(isodow from focoh_interno.hoje())::int,
+            hora_envio = '00:00',
+            hora_escalonamento = '00:01',
+            url_formulario_base = 'https://exemplo.invalid/laudos'
+      where id = 1`
+  );
+
+await esperaSucesso(
+  'na janela configurada, cobra um webhook por tipo de laudo + escalonamento',
+  'coordenacao_tecnica',
+  'criados=4 etapas=envio,escalonamento',
+  async assumir => {
+    await alinharJanelaCobranca();
+    await db.exec('reset role');
+    const { rows: r } = await db.query(
+      'select focoh_interno.processar_cobranca_laudos()::text as criados'
+    );
+    await assumir('coordenacao_tecnica');
+    const { rows: e } = await db.query(
+      `select string_agg(etapa::text, ',' order by etapa) as etapas
+         from public.execucoes_cobranca_laudos`
+    );
+    return `criados=${r[0].criados} etapas=${e[0].etapas}`;
+  }
+);
+
+await esperaSucesso(
+  'segunda passagem na mesma semana não cobra de novo (idempotência)',
+  'coordenacao_tecnica',
+  'primeira=4 segunda=0',
+  async () => {
+    await alinharJanelaCobranca();
+    await db.exec('reset role');
+    const { rows: a } = await db.query(
+      'select focoh_interno.processar_cobranca_laudos()::text as n'
+    );
+    const { rows: b } = await db.query(
+      'select focoh_interno.processar_cobranca_laudos()::text as n'
+    );
+    return `primeira=${a[0].n} segunda=${b[0].n}`;
+  }
+);
+
+await esperaSucesso(
+  'o link cobrado é parametrizado por paciente, tipo e semana',
+  'coordenacao_tecnica',
+  'link parametrizado',
+  async () => {
+    await alinharJanelaCobranca();
+    await db.exec('reset role');
+    await db.query('select focoh_interno.processar_cobranca_laudos()');
+    const { rows } = await db.query(
+      `select payload -> 'pacientes' -> 0 ->> 'url' as url
+         from public.webhooks_saida
+        where evento = 'laudos.cobranca' limit 1`
+    );
+    const url = rows[0].url ?? '';
+    return /\?paciente=[0-9a-f-]+&tipo=\w+&semana=\d{4}-\d{2}-\d{2}$/.test(url)
+      ? 'link parametrizado'
+      : `formato inesperado: ${url}`;
+  }
+);
+
+await esperaSucesso(
+  'fora do dia configurado, nada é cobrado',
+  'coordenacao_tecnica',
+  '0',
+  async () => {
+    await db.query(
+      `update public.config_cobranca_laudos
+          set dia_semana = 1 + (extract(isodow from focoh_interno.hoje())::int % 7)
+        where id = 1`
+    );
+    await db.exec('reset role');
+    const { rows } = await db.query(
+      'select focoh_interno.processar_cobranca_laudos()::text as n'
+    );
+    return rows[0].n;
+  }
+);
+
+// ==========================================================================
+// Agendamentos declarados
+// ==========================================================================
+console.log('\n== Agendamentos (pg_cron) ==');
+await esperaSucesso(
+  'as três rotinas estão agendadas',
+  'coordenacao_tecnica',
+  'focoh-cobranca-laudos,focoh-despachar-webhooks,focoh-reconciliar-webhooks',
+  async () => {
+    await db.exec('reset role');
+    const { rows } = await db.query(
+      "select string_agg(jobname, ',' order by jobname) as jobs from cron.job"
+    );
+    return rows[0].jobs;
+  }
+);
+
+await esperaSucesso(
+  'config do Protocolo Vermelho segue sem validação clínica assinada',
+  'coordenacao_tecnica',
+  'validado_clinicamente=false destinatarios_sem_whatsapp=5',
+  async () => {
+    const { rows } = await db.query(
+      `select c.validado_clinicamente,
+              (select count(*) from jsonb_array_elements(c.destinatarios) d
+                where d ->> 'whatsapp' is null)::text as sem_whatsapp
+         from public.config_protocolo_vermelho c where c.id = 1`
+    );
+    return `validado_clinicamente=${rows[0].validado_clinicamente} destinatarios_sem_whatsapp=${rows[0].sem_whatsapp}`;
+  }
+);
 
 // --------------------------------------------------------------------------
 const falhas = resultados.filter(r => !r.ok);
