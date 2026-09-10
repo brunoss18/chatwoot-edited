@@ -1,0 +1,68 @@
+# =============================================================================
+# Chatwoot (fork Rede Focoh) — deploy self-hosted no Coolify
+# -----------------------------------------------------------------------------
+# Diferente de `docker-compose.production.yaml`, este arquivo BUILDA a imagem a
+# partir deste repositório (`docker/Dockerfile`) em vez de baixar
+# `chatwoot/chatwoot:latest` — sem isso, as edições do fork (incluindo o módulo
+# Kanban Clínico) seriam ignoradas.
+#
+# POSTGRES E REDIS SÃO EXTERNOS: são recursos separados geridos pelo Coolify.
+# Este compose não os sobe. O Postgres precisa da extensão pgvector habilitada.
+#
+# SEGREDOS VÊM DAS ENVIRONMENT VARIABLES DO COOLIFY, nunca deste arquivo nem de
+# um `.env` versionado. Aqui só ficam declaradas as não-secretas fixas.
+# A lista completa do que cadastrar está em `COOLIFY_ENV.md`.
+#
+# MIGRATIONS NÃO RODAM NO BOOT: `docker/entrypoints/rails.sh` não as executa (o
+# upstream usa fase de release no Procfile). Rodar `db:chatwoot_prepare` uma vez
+# é passo manual/pre-deploy — ver `DEPLOY_COOLIFY.md`.
+#
+# As duas VITE_FOCOH_* são BUILD ARGS, não variáveis de runtime: o Vite as
+# grava no bundle durante `assets:precompile`, que acontece no build da imagem.
+# No Coolify, marque as duas como "Build Variable".
+# =============================================================================
+
+# Bloco compartilhado. É um campo de extensão `x-`, não um serviço: se fosse um
+# serviço `base` como no compose de produção, o Coolify tentaria implantá-lo e
+# ele entraria em crash-loop por não ter comando.
+x-chatwoot-base: &chatwoot-base
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+    args:
+      RAILS_ENV: production
+      # Vazias por padrão: imagem buildada sem elas sobe com o board dizendo
+      # "não configurado", em vez de aparecer vazio e parecer clínica sem
+      # pacientes internados.
+      VITE_FOCOH_SUPABASE_URL: ${VITE_FOCOH_SUPABASE_URL:-}
+      VITE_FOCOH_SUPABASE_ANON_KEY: ${VITE_FOCOH_SUPABASE_ANON_KEY:-}
+  # Mesma tag nos dois serviços: a imagem é construída uma vez e reaproveitada.
+  image: chatwoot-focoh:latest
+  environment:
+    NODE_ENV: production
+    RAILS_ENV: production
+    INSTALLATION_ENV: docker
+  volumes:
+    - storage_data:/app/storage
+  restart: always
+
+services:
+  # Servidor web. Sem bind de porta no host: o Traefik do Coolify alcança o
+  # container pela rede interna, e o HTTPS é emitido pelo Coolify no domínio
+  # configurado para este serviço.
+  rails:
+    <<: *chatwoot-base
+    expose:
+      - '3000'
+    entrypoint: docker/entrypoints/rails.sh
+    command: ['bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
+
+  # Processador de jobs em background (e-mails, webhooks, automações).
+  sidekiq:
+    <<: *chatwoot-base
+    command: ['bundle', 'exec', 'sidekiq', '-C', 'config/sidekiq.yml']
+
+# Uploads e ActiveStorage. Compartilhado entre rails e sidekiq porque os dois
+# leem e escrevem anexos.
+volumes:
+  storage_data:
