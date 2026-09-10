@@ -22,6 +22,19 @@ ENV RAILS_ENV ${RAILS_ENV}
 ARG NODE_OPTIONS="--max-old-space-size=4096 --openssl-legacy-provider"
 ENV NODE_OPTIONS ${NODE_OPTIONS}
 
+# Fork Rede Focoh — módulo Kanban Clínico.
+# O Vite grava `import.meta.env.VITE_*` no bundle durante `assets:precompile`,
+# que acontece neste estágio. Portanto estas duas precisam existir no BUILD:
+# cadastrá-las só como env var de runtime não as coloca no bundle.
+# Não são segredo (a anon key é feita para o navegador; a RLS é o que isola o
+# escore de risco). O segredo do módulo é FOCOH_SUPABASE_JWT_SECRET, que fica
+# apenas no Rails, em runtime.
+ARG VITE_FOCOH_SUPABASE_URL=""
+ENV VITE_FOCOH_SUPABASE_URL=${VITE_FOCOH_SUPABASE_URL}
+
+ARG VITE_FOCOH_SUPABASE_ANON_KEY=""
+ENV VITE_FOCOH_SUPABASE_ANON_KEY=${VITE_FOCOH_SUPABASE_ANON_KEY}
+
 ENV BUNDLE_PATH="/gems"
 
 RUN apk update && apk add --no-cache \
