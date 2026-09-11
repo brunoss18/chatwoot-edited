@@ -1,0 +1,93 @@
+# =============================================================================
+# Build da imagem do fork (Chatwoot + Kanban Clínico Rede Focoh)
+# -----------------------------------------------------------------------------
+# Builda nos runners do GitHub (4 vCPU / 16 GB) e publica no GitHub Container
+# Registry. O Coolify passa a apenas PUXAR a imagem pronta, em vez de compilar.
+#
+# Por que: `bundle install -j 4` do Dockerfile do Chatwoot compila 4 gems
+# nativas em paralelo (o grpc sozinho chega a ~2 GB de RSS). Numa VPS pequena
+# isso estoura a memória no meio do build — e pior, competindo por RAM com os
+# serviços que já estão no ar.
+#
+# Ganho de segurança, de graça: aqui passamos SÓ 3 build args. O build do
+# Coolify injetava todas as variáveis como build arg, incluindo
+# SECRET_KEY_BASE, POSTGRES_PASSWORD e SMTP_PASSWORD — que acabariam no
+# histórico de camadas da imagem. Nada de segredo entra nesta imagem.
+# =============================================================================
+
+name: Build image
+
+on:
+  push:
+    branches: [deploy/coolify]
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+concurrency:
+  group: build-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/chatwoot-focoh
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # A imagem do Chatwoot é grande (gems compiladas + node_modules + assets).
+      # O runner vem com ~14 GB livres; estes diretórios não servem para nada
+      # aqui e liberam vários GB.
+      - name: Liberar espaço em disco
+        run: |
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet /usr/local/share/boost
+          df -h /
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=long
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          # O servidor de deploy é x86_64. Uma plataforma só corta o tempo pela metade.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            RAILS_ENV=production
+            VITE_FOCOH_SUPABASE_URL=${{ secrets.VITE_FOCOH_SUPABASE_URL }}
+            VITE_FOCOH_SUPABASE_ANON_KEY=${{ secrets.VITE_FOCOH_SUPABASE_ANON_KEY }}
+          # Cache no próprio registry, não no cache do Actions: o limite de 10 GB
+          # por repositório do GHA não aguenta as camadas desta imagem.
+          cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max
+
+      - name: Resumo
+        run: |
+          echo "### Imagem publicada" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "No Coolify: Redeploy para puxar a nova \`:latest\`." >> $GITHUB_STEP_SUMMARY

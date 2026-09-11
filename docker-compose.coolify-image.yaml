@@ -1,0 +1,52 @@
+# =============================================================================
+# Chatwoot (fork Rede Focoh) — deploy no Coolify usando a IMAGEM JÁ PRONTA
+# -----------------------------------------------------------------------------
+# Use ESTE arquivo no Coolify (campo "Docker Compose Location"). Ele não builda
+# nada: puxa a imagem publicada pelo GitHub Actions (.github/workflows/build-image.yml).
+#
+# Deploy passa de 15-25 min para ~2 min, e o servidor de produção deixa de
+# competir por RAM com o build — que era o que estourava a memória no meio do
+# `bundle install`.
+#
+# O irmão deste arquivo, `docker-compose.coolify.yaml`, builda no servidor.
+# Fica como plano B caso o registry esteja fora do ar.
+#
+# POSTGRES E REDIS SÃO EXTERNOS (recursos separados do Coolify).
+# SEGREDOS VÊM DAS ENVIRONMENT VARIABLES DO COOLIFY — ver COOLIFY_ENV.md.
+# MIGRATIONS NÃO RODAM NO BOOT — ver DEPLOY_COOLIFY.md, passo 8.
+#
+# As duas VITE_FOCOH_* NÃO entram aqui: elas são gravadas no bundle JavaScript
+# durante o build, então vivem como secrets do repositório no GitHub. Trocá-las
+# exige rodar o workflow de novo, não um redeploy.
+# =============================================================================
+
+x-chatwoot-base: &chatwoot-base
+  # Se você fez fork para outra conta, troque o dono aqui.
+  image: ghcr.io/brunoss18/chatwoot-focoh:latest
+  environment:
+    NODE_ENV: production
+    RAILS_ENV: production
+    INSTALLATION_ENV: docker
+  volumes:
+    - storage_data:/app/storage
+  restart: always
+
+services:
+  # Servidor web. O Traefik do Coolify alcança pela rede interna e emite o HTTPS
+  # no domínio configurado para ESTE serviço.
+  rails:
+    <<: *chatwoot-base
+    expose:
+      - '3000'
+    entrypoint: docker/entrypoints/rails.sh
+    command: ['bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
+
+  # Jobs em background (e-mails, webhooks, automações).
+  sidekiq:
+    <<: *chatwoot-base
+    command: ['bundle', 'exec', 'sidekiq', '-C', 'config/sidekiq.yml']
+
+# Uploads e ActiveStorage, compartilhado porque os dois serviços leem e escrevem
+# anexos.
+volumes:
+  storage_data:
