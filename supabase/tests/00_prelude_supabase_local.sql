@@ -37,3 +37,10 @@ alter default privileges in schema public
   grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public
   grant all on sequences to anon, authenticated, service_role;
+-- FUNÇÕES também, e esta linha é dívida paga: sem ela o harness não reproduzia
+-- o Supabase real, onde toda função criada em `public` nasce com EXECUTE
+-- concedido nominalmente a `anon`. A ausência disso deixou passar um
+-- /rest/v1/rpc/cards_do_quadro anônimo respondendo 200 em produção (corrigido
+-- pela migration 16).
+alter default privileges in schema public
+  grant all on functions to anon, authenticated, service_role;

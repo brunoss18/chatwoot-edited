@@ -343,6 +343,39 @@ await esperaSucesso(
   async () => (await db.query('select count(*)::text as t from public.cards_do_quadro()')).rows[0].t
 );
 
+// Regressão de um furo real, encontrado só ao aplicar num Supabase de verdade:
+// os default privileges do Supabase concedem EXECUTE a `anon` em toda função
+// nova de `public`, e `revoke ... from public` não desfaz concessão nominal.
+// Um POST anônimo em /rest/v1/rpc/cards_do_quadro respondia 200.
+await esperaSucesso(
+  'anon NÃO pode executar cards_do_quadro (nem chamar, nem receber vazio)',
+  'recepcao',
+  'execute_anon=false',
+  async () => {
+    await db.exec('reset role');
+    const { rows } = await db.query(
+      "select has_function_privilege('anon', 'public.cards_do_quadro(boolean)', 'EXECUTE') as pode"
+    );
+    return `execute_anon=${rows[0].pode}`;
+  }
+);
+
+await esperaSucesso(
+  'anon NÃO pode executar nenhuma função de focoh_interno',
+  'recepcao',
+  'funcoes_expostas=0',
+  async () => {
+    await db.exec('reset role');
+    const { rows } = await db.query(
+      `select count(*)::text as t
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'focoh_interno'
+          and has_function_privilege('anon', p.oid, 'EXECUTE')`
+    );
+    return `funcoes_expostas=${rows[0].t}`;
+  }
+);
+
 // --------------------------------------------------------------------------
 // Limiar do Protocolo Vermelho — configurável, não hard-coded
 // --------------------------------------------------------------------------
