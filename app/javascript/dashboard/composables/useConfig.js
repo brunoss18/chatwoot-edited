@@ -42,6 +42,19 @@ export function useConfig() {
    */
   const inboxEventsEnabled = config.inboxEventsEnabled === 'true';
 
+  /**
+   * Kanban Clínico Rede Focoh: URL do projeto Supabase.
+   * @type {string|undefined}
+   */
+  const focohSupabaseUrl = config.focohSupabaseUrl;
+
+  /**
+   * Kanban Clínico Rede Focoh: anon key do Supabase. Feita para viver no
+   * navegador — é a RLS que isola o escore de risco de suicídio.
+   * @type {string|undefined}
+   */
+  const focohSupabaseAnonKey = config.focohSupabaseAnonKey;
+
   return {
     hostURL,
     vapidPublicKey,
@@ -49,5 +62,7 @@ export function useConfig() {
     isEnterprise,
     enterprisePlanName,
     inboxEventsEnabled,
+    focohSupabaseUrl,
+    focohSupabaseAnonKey,
   };
 }

@@ -38,7 +38,7 @@
       "APTO_A_AVANCAR": "Eligible to advance"
     },
     "ESTADO": {
-      "SEM_CONFIGURACAO": "The Clinical Kanban is not configured on this installation. Set VITE_FOCOH_SUPABASE_URL and VITE_FOCOH_SUPABASE_ANON_KEY and rebuild the frontend.",
+      "SEM_CONFIGURACAO": "The Clinical Kanban is not configured on this installation. Set FOCOH_SUPABASE_URL and FOCOH_SUPABASE_ANON_KEY in the environment and restart the application.",
       "SEM_PAPEL_CLINICO": "Your user has no clinical role assigned in the Rede Focoh Kanban. Without one the board would render empty, which is not the same as having no admitted patients. Request the assignment from the Technical Coordination.",
       "PAPEL_CLINICO_INVALIDO": "The clinical role assigned to your user is not recognised by the Kanban. This indicates a configuration error — notify the Technical Coordination.",
       "SEM_TOKEN": "Could not authenticate with Supabase to load the board. Try again; if the problem persists, notify the Technical Coordination."

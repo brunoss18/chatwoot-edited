@@ -34,6 +34,13 @@
       window.chatwootConfig = {
         hostURL: '<%= ENV.fetch('FRONTEND_URL', '') %>',
         helpCenterURL: '<%= ENV.fetch('HELPCENTER_URL', '') %>',
+        <%# Kanban Clínico Rede Focoh. ENV direto, e não GlobalConfigService: este
+            persiste o primeiro valor lido em installation_configs e passa a ignorar
+            a variável de ambiente, o que tornaria a troca de projeto Supabase um
+            mistério. A anon key é feita para o navegador; a RLS é o que isola o
+            escore de risco. %>
+        focohSupabaseUrl: '<%= ENV.fetch('FOCOH_SUPABASE_URL', '') %>',
+        focohSupabaseAnonKey: '<%= ENV.fetch('FOCOH_SUPABASE_ANON_KEY', '') %>',
         fbAppId: '<%= @global_config['FB_APP_ID'] %>',
         instagramAppId: '<%= @global_config['INSTAGRAM_APP_ID'] %>',
         tiktokAppId: '<%= @global_config['TIKTOK_APP_ID'] %>',

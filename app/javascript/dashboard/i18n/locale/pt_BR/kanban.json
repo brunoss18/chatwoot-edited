@@ -38,7 +38,7 @@
       "APTO_A_AVANCAR": "Apto a avançar"
     },
     "ESTADO": {
-      "SEM_CONFIGURACAO": "O Kanban Clínico não está configurado nesta instalação. Defina VITE_FOCOH_SUPABASE_URL e VITE_FOCOH_SUPABASE_ANON_KEY e refaça o build do frontend.",
+      "SEM_CONFIGURACAO": "O Kanban Clínico não está configurado nesta instalação. Defina FOCOH_SUPABASE_URL e FOCOH_SUPABASE_ANON_KEY nas variáveis de ambiente e reinicie a aplicação.",
       "SEM_PAPEL_CLINICO": "Seu usuário não tem papel clínico atribuído no Kanban da Rede Focoh. Sem ele o quadro apareceria vazio, o que não é o mesmo que não haver pacientes internados. Solicite a atribuição à Coordenação Técnica.",
       "PAPEL_CLINICO_INVALIDO": "O papel clínico atribuído ao seu usuário não é reconhecido pelo Kanban. Isso indica erro de configuração — avise a Coordenação Técnica.",
       "SEM_TOKEN": "Não foi possível autenticar no Supabase para carregar o quadro. Tente novamente; se persistir, avise a Coordenação Técnica."

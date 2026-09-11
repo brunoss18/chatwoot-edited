@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue';
 import { createClient } from '@supabase/supabase-js';
+import { useConfig } from 'dashboard/composables/useConfig';
 import FocohSupabaseTokenAPI from 'dashboard/api/focohSupabaseToken';
 
 /**
@@ -15,13 +16,15 @@ import FocohSupabaseTokenAPI from 'dashboard/api/focohSupabaseToken';
  * questão de disciplina — a RLS não devolveria linha alguma para recepção.
  */
 
-const SUPABASE_URL = import.meta.env.VITE_FOCOH_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_FOCOH_SUPABASE_ANON_KEY;
-
-// Ausência das variáveis é erro de deploy, não estado de operação: o board
-// mostra isso na cara do operador em vez de aparecer vazio, que pareceria
-// "nenhum paciente internado".
-const isConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+// Configuração de RUNTIME, servida pelo Rails em `window.chatwootConfig`
+// (app/views/layouts/vueapp.html.erb) a partir de FOCOH_SUPABASE_URL e
+// FOCOH_SUPABASE_ANON_KEY.
+//
+// Já foi build-time, via `import.meta.env.VITE_*`. O Vite gravava os valores
+// dentro do bundle durante `assets:precompile`, então apontar o board para outro
+// projeto Supabase exigia rebuild da imagem inteira — e, num deploy com imagem
+// pré-construída, exigia secret no CI. Como runtime, basta a variável de
+// ambiente e um restart.
 
 // Renova antes do vencimento para nenhum request sair com token que expira em
 // trânsito.
@@ -55,12 +58,16 @@ const obterToken = async () => {
   }
 };
 
+// Lido a cada chamada, e não uma vez no carregamento do módulo: `window` só
+// existe depois que a página renderizou, e ler cedo devolveria undefined.
 const getClient = () => {
-  if (!isConfigured) return null;
+  const { focohSupabaseUrl, focohSupabaseAnonKey } = useConfig();
+  if (!focohSupabaseUrl || !focohSupabaseAnonKey) return null;
+
   if (!client) {
     // `accessToken` é o contrato do supabase-js para JWT de provedor externo:
     // ele usa este token em todo request e não tenta gerir sessão própria.
-    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    client = createClient(focohSupabaseUrl, focohSupabaseAnonKey, {
       accessToken: obterToken,
     });
   }
@@ -68,6 +75,13 @@ const getClient = () => {
 };
 
 export function useFocohKanban() {
+  const { focohSupabaseUrl, focohSupabaseAnonKey } = useConfig();
+
+  // Ausência das variáveis é erro de deploy, não estado de operação: o board
+  // mostra isso na cara do operador em vez de aparecer vazio, que pareceria
+  // "nenhum paciente internado".
+  const isConfigured = Boolean(focohSupabaseUrl && focohSupabaseAnonKey);
+
   const cards = ref([]);
   const isLoading = ref(false);
   const erroCarregamento = ref(null);

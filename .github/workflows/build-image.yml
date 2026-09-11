@@ -75,10 +75,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Um build arg só, e nenhum segredo. A configuração do Supabase é de
+          # runtime (window.chatwootConfig), então a imagem serve qualquer
+          # projeto Supabase sem rebuild — e o CI não precisa de secret algum.
           build-args: |
             RAILS_ENV=production
-            VITE_FOCOH_SUPABASE_URL=${{ secrets.VITE_FOCOH_SUPABASE_URL }}
-            VITE_FOCOH_SUPABASE_ANON_KEY=${{ secrets.VITE_FOCOH_SUPABASE_ANON_KEY }}
           # Cache no próprio registry, não no cache do Actions: o limite de 10 GB
           # por repositório do GHA não aguenta as camadas desta imagem.
           cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
