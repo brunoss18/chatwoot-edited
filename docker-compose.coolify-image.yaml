@@ -27,6 +27,39 @@ x-chatwoot-base: &chatwoot-base
     NODE_ENV: production
     RAILS_ENV: production
     INSTALLATION_ENV: docker
+    # --- Aplicação ------------------------------------------------------------
+    # Declaradas explicitamente: o Coolify 4.3 só faz substituição de ${VAR} no
+    # arquivo, não injeta as variáveis do painel dentro dos serviços. Sem isto o
+    # container sobe sem POSTGRES_HOST e trava no `pg_isready` do entrypoint.
+    SECRET_KEY_BASE: ${SECRET_KEY_BASE:?defina SECRET_KEY_BASE}
+    FRONTEND_URL: ${FRONTEND_URL:?defina FRONTEND_URL}
+    RAILS_LOG_TO_STDOUT: ${RAILS_LOG_TO_STDOUT:-true}
+    RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
+    SIDEKIQ_CONCURRENCY: ${SIDEKIQ_CONCURRENCY:-10}
+    DEFAULT_LOCALE: ${DEFAULT_LOCALE:-pt_BR}
+    FORCE_SSL: ${FORCE_SSL:-false}
+    ACTIVE_STORAGE_SERVICE: ${ACTIVE_STORAGE_SERVICE:-local}
+    # --- Banco e fila: EXTERNOS neste arquivo, sem default -------------------
+    POSTGRES_HOST: ${POSTGRES_HOST:?defina POSTGRES_HOST}
+    POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+    POSTGRES_DATABASE: ${POSTGRES_DATABASE:-chatwoot_production}
+    POSTGRES_USERNAME: ${POSTGRES_USERNAME:?defina POSTGRES_USERNAME}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}
+    REDIS_URL: ${REDIS_URL:?defina REDIS_URL}
+    REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    # --- E-mail ---------------------------------------------------------------
+    MAILER_SENDER_EMAIL: ${MAILER_SENDER_EMAIL:-}
+    SMTP_ADDRESS: ${SMTP_ADDRESS:-}
+    SMTP_PORT: ${SMTP_PORT:-}
+    SMTP_USERNAME: ${SMTP_USERNAME:-}
+    SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    SMTP_DOMAIN: ${SMTP_DOMAIN:-}
+    SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-}
+    SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-}
+    # --- Kanban Clínico -------------------------------------------------------
+    FOCOH_SUPABASE_URL: ${FOCOH_SUPABASE_URL:-}
+    FOCOH_SUPABASE_ANON_KEY: ${FOCOH_SUPABASE_ANON_KEY:-}
+    FOCOH_SUPABASE_JWT_SECRET: ${FOCOH_SUPABASE_JWT_SECRET:-}
     # --- WhatsApp via Baileys -------------------------------------------------
     BAILEYS_PROVIDER_DEFAULT_URL: http://baileys-api:3025
     BAILEYS_PROVIDER_USE_INTERNAL_HOST_URL: "true"

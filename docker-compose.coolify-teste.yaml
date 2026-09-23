@@ -27,6 +27,40 @@ x-chatwoot-base: &chatwoot-base
     NODE_ENV: production
     RAILS_ENV: production
     INSTALLATION_ENV: docker
+    # --- Aplicação ------------------------------------------------------------
+    # Declaradas explicitamente de propósito. O Coolify 4.0 injetava as variáveis
+    # do painel dentro de cada serviço do compose; o 4.3 só faz substituição de
+    # ${VAR} no arquivo. Sem estas linhas o container sobe com POSTGRES_HOST
+    # vazio e o entrypoint fica em loop eterno de `pg_isready -h -p 5432`.
+    SECRET_KEY_BASE: ${SECRET_KEY_BASE:?defina SECRET_KEY_BASE}
+    FRONTEND_URL: ${FRONTEND_URL:?defina FRONTEND_URL}
+    RAILS_LOG_TO_STDOUT: ${RAILS_LOG_TO_STDOUT:-true}
+    RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
+    SIDEKIQ_CONCURRENCY: ${SIDEKIQ_CONCURRENCY:-10}
+    DEFAULT_LOCALE: ${DEFAULT_LOCALE:-pt_BR}
+    FORCE_SSL: ${FORCE_SSL:-false}
+    ACTIVE_STORAGE_SERVICE: ${ACTIVE_STORAGE_SERVICE:-local}
+    # --- Banco e fila ---------------------------------------------------------
+    POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+    POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+    POSTGRES_DATABASE: ${POSTGRES_DATABASE:-chatwoot_production}
+    POSTGRES_USERNAME: ${POSTGRES_USERNAME:-chatwoot}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}
+    REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+    REDIS_PASSWORD: ${REDIS_PASSWORD:?defina REDIS_PASSWORD}
+    # --- E-mail (pode ficar em branco; a aplicação sobe sem) -------------------
+    MAILER_SENDER_EMAIL: ${MAILER_SENDER_EMAIL:-}
+    SMTP_ADDRESS: ${SMTP_ADDRESS:-}
+    SMTP_PORT: ${SMTP_PORT:-}
+    SMTP_USERNAME: ${SMTP_USERNAME:-}
+    SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    SMTP_DOMAIN: ${SMTP_DOMAIN:-}
+    SMTP_AUTHENTICATION: ${SMTP_AUTHENTICATION:-}
+    SMTP_ENABLE_STARTTLS_AUTO: ${SMTP_ENABLE_STARTTLS_AUTO:-}
+    # --- Kanban Clínico (runtime, não build) ----------------------------------
+    FOCOH_SUPABASE_URL: ${FOCOH_SUPABASE_URL:-}
+    FOCOH_SUPABASE_ANON_KEY: ${FOCOH_SUPABASE_ANON_KEY:-}
+    FOCOH_SUPABASE_JWT_SECRET: ${FOCOH_SUPABASE_JWT_SECRET:-}
     # --- WhatsApp via Baileys -------------------------------------------------
     # A URL é fixa e interna: `baileys-api` é o nome do serviço neste mesmo
     # compose, então o Docker resolve sozinho. A porta 3025 nunca é publicada.
