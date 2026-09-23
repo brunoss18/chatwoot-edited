@@ -58,3 +58,23 @@ $$;
 
 comment on function focoh_interno.tg_avaliacoes_risco_derivar_nivel() is
   'Deriva avaliacoes_risco.nivel do escore usando os limiares editáveis de config_protocolo_vermelho. Escala INVERTIDA: escore menor = risco maior.';
+
+-- ----------------------------------------------------------------------------
+-- A constraint de coerência dos limiares carregava a mesma inversão
+-- ----------------------------------------------------------------------------
+-- `limiar_alto >= limiar_moderado` era correto enquanto se acreditava numa
+-- escala crescente. Na escala real, o limiar de risco ALTO é o menor dos dois
+-- (5–10 alto, 11–15 moderado), então a checagem rejeitava justamente a
+-- configuração certa: com moderado=15, ela recusava alto=10.
+--
+-- Idempotente de propósito: esta migration é reaplicada sobre bancos que já
+-- rodaram a versão anterior dela.
+alter table public.config_protocolo_vermelho
+  drop constraint if exists config_pv_limiares_coerentes;
+
+alter table public.config_protocolo_vermelho
+  add constraint config_pv_limiares_coerentes
+  check (limiar_alto is null or limiar_alto <= limiar_moderado);
+
+comment on constraint config_pv_limiares_coerentes on public.config_protocolo_vermelho is
+  'Escala invertida: o limiar de risco ALTO é numericamente MENOR que o de moderado.';
