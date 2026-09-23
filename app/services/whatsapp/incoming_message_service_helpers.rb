@@ -128,4 +128,42 @@ module Whatsapp::IncomingMessageServiceHelpers
 
     Whatsapp::Session::Inbound::Locks.with_chat_lock(inbox, phone, wait: wait, &)
   end
+
+  # Anuncio Click-to-WhatsApp que originou a conversa. Os tres metodos abaixo
+  # sao chamados por `BaileysHandlers::Concerns::IndividualContactMessageHandler`
+  # e por `MessageCreationHandler`, e nenhum deles veio no port: a primeira
+  # mensagem recebida apos o pareamento morria aqui com NoMethodError, depois de
+  # o evento ja ter atravessado o webhook e a fila.
+  def normalize_baileys_referral(context_info)
+    ad = context_info&.dig(:externalAdReply)
+    return if ad.blank?
+
+    {
+      source_type: ad[:sourceType],
+      source_id: ad[:sourceId],
+      source_url: ad[:sourceUrl],
+      ctwa_clid: ad[:ctwaClid],
+      title: ad[:title],
+      body: ad[:body],
+      media_type: baileys_media_type(ad[:mediaType]),
+      thumbnail_url: ad[:thumbnailUrl]
+    }.compact.presence
+  end
+
+  # O Baileys manda o tipo de midia do anuncio ora como enum numerico, ora como
+  # string. Normaliza os dois para a mesma forma.
+  def baileys_media_type(value)
+    return if value.nil?
+    return { 0 => 'none', 1 => 'image', 2 => 'video' }[value] if value.is_a?(Integer)
+
+    value.to_s.downcase.presence
+  end
+
+  # Por onde o contato entrou (ex.: um link com origem declarada).
+  def normalize_baileys_entry_point(context_info)
+    source = context_info&.dig(:entryPointConversionSource)
+    return if source.blank?
+
+    { source: source, app: context_info[:entryPointConversionApp].presence }.compact.presence
+  end
 end
