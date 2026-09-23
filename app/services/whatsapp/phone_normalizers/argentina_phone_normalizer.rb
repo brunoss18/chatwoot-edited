@@ -10,6 +10,12 @@ class Whatsapp::PhoneNormalizers::ArgentinaPhoneNormalizer < Whatsapp::PhoneNorm
     waid.sub(/^549/, '54')
   end
 
+  def variants(waid)
+    return [waid] unless handles_country?(waid)
+
+    [waid, waid.start_with?('549') ? waid.sub(/^549/, '54') : "549#{waid[2..]}"].uniq
+  end
+
   private
 
   def country_code_pattern

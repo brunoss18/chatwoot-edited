@@ -17,6 +17,15 @@ class Whatsapp::PhoneNormalizers::BasePhoneNormalizer
     [waid]
   end
 
+  # Todas as formas sob as quais o numero pode aparecer no WhatsApp, incluindo
+  # ele proprio. Existe ao lado de `contact_candidates`, e nao no lugar dela:
+  # `contact_candidates` serve o caminho do upstream e cobre um sentido so; o
+  # servico de consolidacao de contact_inbox, que veio do port do Baileys, foi
+  # escrito contra `variants` e precisa dos dois sentidos do nono digito.
+  def variants(waid)
+    [waid]
+  end
+
   private
 
   def country_code_pattern
