@@ -12,6 +12,12 @@ module Events::Types
 
   # channel events
   WEBWIDGET_TRIGGERED = 'webwidget.triggered'
+  # Despachado pelo port do Baileys a cada webhook do provedor. A constante vive
+  # aqui, e nao no servico, porque `Whatsapp::IncomingMessageBaileysService` a
+  # resolve via `include Events::Types`. Sem ela o job morre com NameError antes
+  # de tratar o evento — inclusive o `connection.update` que carrega o QR Code,
+  # e a caixa nunca sai de "conectando".
+  PROVIDER_EVENT_RECEIVED = 'provider.event_received'
 
   # conversation events
   CONVERSATION_CREATED = 'conversation.created'
@@ -47,6 +53,10 @@ module Events::Types
   CONTACT_UPDATED = 'contact.updated'
   CONTACT_MERGED = 'contact.merged'
   CONTACT_DELETED = 'contact.deleted'
+  # Usada por `BaileysHandlers::Concerns::GroupEventHelper`. Mesma origem da
+  # PROVIDER_EVENT_RECEIVED acima: o port trouxe o codigo que a referencia, nao
+  # a declaracao. So dispara com grupos habilitados, entao estava latente.
+  CONTACT_GROUP_SYNCED = 'contact.group_synced'
 
   # contact events
   INBOX_CREATED = 'inbox.created'
