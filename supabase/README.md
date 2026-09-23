@@ -69,12 +69,12 @@ No `.env` do Chatwoot (há um bloco comentado no `.env.example`):
 
 | Variável | Onde vive | Para quê |
 |----------|-----------|----------|
-| `VITE_FOCOH_SUPABASE_URL` | navegador | URL do projeto Supabase |
-| `VITE_FOCOH_SUPABASE_ANON_KEY` | navegador | **Sempre a anon key.** A RLS é o que isola o escore de risco |
+| `FOCOH_SUPABASE_URL` | navegador | URL do projeto Supabase |
+| `FOCOH_SUPABASE_ANON_KEY` | navegador | **Sempre a anon key.** A RLS é o que isola o escore de risco |
 | `FOCOH_SUPABASE_JWT_SECRET` | servidor | Assina o JWT curto do board (Settings → API → JWT Secret) |
 
-As duas `VITE_*` são lidas em tempo de build — **mudá-las exige rebuild do
-frontend**. Ausência delas não deixa o board vazio: ele diz na tela que não está
+As duas `FOCOH_SUPABASE_*` são de runtime — **mudá-las vale com um restart**, sem
+rebuild. Ausência delas não deixa o board vazio: ele diz na tela que não está
 configurado, porque quadro vazio se confundiria com clínica sem pacientes.
 
 > **A `service_role` key e o `FOCOH_SUPABASE_JWT_SECRET` nunca devem chegar ao

@@ -125,8 +125,14 @@ Mais, para o Kanban Clínico:
 
 ```
 FOCOH_SUPABASE_JWT_SECRET
-VITE_FOCOH_SUPABASE_URL          ← marcar "Build Variable"
-VITE_FOCOH_SUPABASE_ANON_KEY     ← marcar "Build Variable"
+FOCOH_SUPABASE_URL
+FOCOH_SUPABASE_ANON_KEY
+```
+
+Mais, para conectar o WhatsApp por QR Code:
+
+```
+BAILEYS_API_KEY                  ← gere com: openssl rand -hex 32
 ```
 
 Regras:
@@ -134,8 +140,9 @@ Regras:
 - Marque como **secretas**: `SECRET_KEY_BASE`, `POSTGRES_PASSWORD`, `REDIS_URL`,
   `REDIS_PASSWORD`, `SMTP_PASSWORD`, `FOCOH_SUPABASE_JWT_SECRET` e as chaves de
   `ACTIVE_RECORD_ENCRYPTION_*`.
-- Marque como **Build Variable** as duas `VITE_FOCOH_*`. Elas são gravadas no
-  bundle JavaScript durante o build; como variável de runtime **não têm efeito**.
+- As `FOCOH_SUPABASE_*` são de **runtime**: mudar qualquer uma vale com um
+  restart, sem rebuild. As antigas `VITE_FOCOH_*` não são mais lidas.
+- Marque `BAILEYS_API_KEY` como **secreta**.
 - **Não** cadastre `POSTGRES_STATEMENT_TIMEOUT` (o padrão de 14s é proteção em
   runtime; os 600s das migrations vão no comando do passo 8).
 - **Não** cadastre `ENABLE_ACCOUNT_SIGNUP` — o valor vem do banco, não do
@@ -235,9 +242,9 @@ migration nova.
    imagem oficial foi usada em vez do build — reveja o passo 4.
 5. Abra o **Kanban**. O que você vê diz o que ainda falta:
    - **quadro com colunas** → tudo certo;
-   - **"O Kanban Clínico não está configurado nesta instalação"** → as duas
-     `VITE_FOCOH_*` não entraram no build. Marque como *Build Variable* e
-     **refaça o deploy** (restart não resolve: o valor é gravado no bundle);
+     - **"O Kanban Clínico não está configurado nesta instalação"** → faltam
+       `FOCOH_SUPABASE_URL` ou `FOCOH_SUPABASE_ANON_KEY`. Cadastre as duas e
+       **reinicie** — são de runtime, rebuild não é necessário;
    - **"seu usuário não tem papel clínico atribuído"** → o build está certo e a
      conexão funciona. Falta atribuir o papel, no terminal do serviço `rails`:
 
@@ -254,7 +261,54 @@ bundle exec rails runner "u = User.first; u.update!(custom_attributes: u.custom_
 
 ---
 
-## 10. Troubleshooting
+## 10. Conectar o WhatsApp (QR Code)
+
+O serviço `baileys-api` já sobe junto com a aplicação — não há nada a instalar.
+O que falta é parear o aparelho.
+
+1. No Chatwoot: **Settings → Inboxes → Add Inbox → WhatsApp**
+2. Em **Provider**, escolha **Baileys**
+3. Informe o número no formato internacional, com `+` (ex.: `+5511999999999`)
+4. Crie a caixa. O QR Code aparece na tela
+5. No celular: **WhatsApp → Aparelhos conectados → Conectar aparelho** e leia o QR
+
+O QR expira em cerca de 60 segundos. Se expirar, recarregue a página da caixa
+que ele é gerado de novo.
+
+**Conferir se pareou**, do servidor:
+
+```bash
+docker compose exec redis redis-cli -a "$REDIS_PASSWORD" --no-auth-warning --scan --pattern "@baileys-api:connections:*"
+```
+
+A chave `@baileys-api:connections:<numero>:authState` existindo significa sessão
+pareada. Se a caixa aparecer como desconectada e a chave não existir, o
+pareamento não completou.
+
+### O que não funciona, e é de propósito
+
+**Histórico não é importado.** Ao parear, as conversas que já estavam no aparelho
+**não** entram no Chatwoot. Mensagens novas entram normalmente. O subsistema de
+importação de histórico do port do Baileys foi removido no commit `2cdd2b5a91`
+porque não estava portado e impedia a aplicação de subir. Portá-lo é trabalho à
+parte — são 29 arquivos.
+
+**Um número, uma conexão.** O WhatsApp não admite a mesma sessão em dois lugares.
+Se este número já estiver pareado em outra instância, parear aqui derruba a de lá.
+
+### Se o `baileys-api` não ficar `healthy`
+
+```bash
+docker compose logs baileys-api --tail 30
+```
+
+`Cannot find package pino-caller` significa `NODE_ENV` diferente de
+`production` no serviço. O compose deste repositório já define — o erro só
+aparece se o arquivo foi editado.
+
+---
+
+## 11. Troubleshooting
 
 **Build morre com `Killed` ou `exit code 137`** — falta de memória. O build de
 assets pede até ~4 GB. Aumente a RAM do servidor ou crie swap:

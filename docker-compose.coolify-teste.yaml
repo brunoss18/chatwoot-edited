@@ -27,6 +27,15 @@ x-chatwoot-base: &chatwoot-base
     NODE_ENV: production
     RAILS_ENV: production
     INSTALLATION_ENV: docker
+    # --- WhatsApp via Baileys -------------------------------------------------
+    # A URL é fixa e interna: `baileys-api` é o nome do serviço neste mesmo
+    # compose, então o Docker resolve sozinho. A porta 3025 nunca é publicada.
+    BAILEYS_PROVIDER_DEFAULT_URL: http://baileys-api:3025
+    BAILEYS_PROVIDER_USE_INTERNAL_HOST_URL: "true"
+    BAILEYS_PROVIDER_DEFAULT_API_KEY: ${BAILEYS_API_KEY:?defina BAILEYS_API_KEY}
+    BAILEYS_PROVIDER_DEFAULT_CLIENT_NAME: ${BAILEYS_CLIENT_NAME:-Chatwoot Focoh}
+    BAILEYS_WHATSAPP_GROUPS_ENABLED: ${BAILEYS_WHATSAPP_GROUPS_ENABLED:-false}
+    WHATSAPP_GROUPS_ENABLED: ${WHATSAPP_GROUPS_ENABLED:-false}
   volumes:
     - storage_data:/app/storage
   depends_on:
@@ -71,6 +80,51 @@ services:
     command: ['redis-server', '--requirepass', '${REDIS_PASSWORD}']
     volumes:
       - redis_data:/data
+
+  # ---------------------------------------------------------------------------
+  # baileys-api — o provedor de WhatsApp por QR Code
+  # ---------------------------------------------------------------------------
+  # A versão NÃO é livre: ela acompanha a versão do Chatwoot. Este fork é 4.17.x
+  # e o par correspondente é a v3.7.2 (a v3.2.0 pareia com o Chatwoot 4.14.x).
+  # Trocar uma sem a outra quebra o contrato de webhook entre os dois.
+  #
+  # A sessão pareada do WhatsApp mora no REDIS, na chave
+  #   @baileys-api:connections:<numero>:authState
+  # e não em disco. Duas consequências práticas:
+  #   · perder o volume do Redis é perder o pareamento — QR de novo;
+  #   · migrar de VPS preservando o pareamento é copiar essa chave, com o
+  #     serviço antigo DERRUBADO antes. O WhatsApp admite uma conexão por
+  #     sessão; dois serviços no ar com a mesma credencial a invalidam.
+  baileys-api:
+    image: ghcr.io/fazer-ai/baileys-api:v3.7.2
+    restart: always
+    # Sem `ports`: só o Rails e o Sidekiq falam com ele, pela rede do compose.
+    expose:
+      - "3025"
+    environment:
+      # Obrigatório. Fora de produção o logger do baileys-api importa
+      # `pino-caller`, que não está no bundle da imagem: sem esta linha o
+      # serviço entra em loop de restart com "Cannot find package pino-caller".
+      NODE_ENV: production
+      BAILEYS_PROVIDER_DEFAULT_API_KEY: ${BAILEYS_API_KEY:?defina BAILEYS_API_KEY}
+      BAILEYS_API_LOG_LEVEL: ${BAILEYS_API_LOG_LEVEL:-info}
+      REDIS_URL: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    # O `|| true` é de propósito: no segundo boot a criação da chave falha
+    # porque ela já existe, e com `&&` isso impediria o serviço de subir depois
+    # de qualquer restart.
+    command:
+      - sh
+      - -c
+      - bun manage-api-keys create user "$$BAILEYS_PROVIDER_DEFAULT_API_KEY" || true; exec bun start
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3025/status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      - redis
 
 volumes:
   storage_data:

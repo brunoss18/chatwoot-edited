@@ -9,21 +9,21 @@ oculta o valor nos logs e na UI).
 
 ---
 
-## ⚠️ Antes de tudo: duas variáveis são de BUILD, não de runtime
+## As variáveis do Kanban são de RUNTIME
 
-O módulo Kanban Clínico lê duas variáveis via `import.meta.env`, e o Vite as
-grava no bundle JavaScript durante `assets:precompile` — que acontece **no build
-da imagem**, não quando o container sobe.
+O módulo Kanban Clínico lê a URL e a `anon key` do Supabase de
+`window.chatwootConfig`, montado pelo Rails a cada boot — não do bundle do Vite.
+São variáveis de ambiente comuns: mudar qualquer uma vale com um **restart**, sem
+rebuild e sem Build Variable.
 
 | Variável | Secreta? | Onde marcar no Coolify |
 |---|---|---|
-| `VITE_FOCOH_SUPABASE_URL` | não | marcar **Build Variable** |
-| `VITE_FOCOH_SUPABASE_ANON_KEY` | não | marcar **Build Variable** |
+| `FOCOH_SUPABASE_URL` | não | variável normal |
+| `FOCOH_SUPABASE_ANON_KEY` | não | variável normal |
 
-Cadastrá-las apenas como variável de runtime **não funciona**: o board sobe
-dizendo "O Kanban Clínico não está configurado nesta instalação". Se isso
-acontecer, marque as duas como Build Variable e **refaça o deploy** — mudança
-nelas exige rebuild, não só restart.
+> As antigas `VITE_FOCOH_SUPABASE_URL` e `VITE_FOCOH_SUPABASE_ANON_KEY` foram
+> substituídas no commit `9e1e6464de`. Se ainda estiverem cadastradas, podem ser
+> apagadas: hoje são ignoradas.
 
 Nenhuma das duas é segredo: a `anon key` é feita para viver no navegador, e é a
 RLS do Supabase que isola o escore de risco de suicídio. O segredo do módulo é o
@@ -132,14 +132,14 @@ recuperação de senha e notificação por e-mail. Dá para configurar depois.
 ## Módulo Kanban Clínico (Supabase)
 
 Varredura no código deste fork por `import.meta.env`, `ENV.fetch` e `ENV[`
-encontrou **exatamente três** variáveis do módulo — as duas de build listadas no
-topo, mais esta:
+encontrou **exatamente três** variáveis do módulo — as duas de runtime listadas
+no topo, mais esta:
 
 | Variável | Secreta? | Onde é lida | Como obter |
 |---|---|---|---|
 | `FOCOH_SUPABASE_JWT_SECRET` | **sim** | [app/services/focoh/supabase_token_service.rb:77](app/services/focoh/supabase_token_service.rb:77) | Supabase → Settings → API → **JWT Secret** |
-| `VITE_FOCOH_SUPABASE_URL` | não | [useFocohKanban.js:18](app/javascript/dashboard/routes/dashboard/kanban/useFocohKanban.js:18) | Supabase → Settings → API → Project URL. **Build Variable** |
-| `VITE_FOCOH_SUPABASE_ANON_KEY` | não | [useFocohKanban.js:19](app/javascript/dashboard/routes/dashboard/kanban/useFocohKanban.js:19) | Supabase → Settings → API → `anon` `public`. **Build Variable** |
+| `FOCOH_SUPABASE_URL` | não | [useFocohKanban.js](app/javascript/dashboard/routes/dashboard/kanban/useFocohKanban.js) via `useConfig()` | Supabase → Settings → API → Project URL |
+| `FOCOH_SUPABASE_ANON_KEY` | não | idem | Supabase → Settings → API → `anon` `public` |
 
 Com o `FOCOH_SUPABASE_JWT_SECRET` é possível forjar qualquer papel clínico e a
 RLS deixa de isolar o escore. Ele fica só no servidor, nunca em build arg.
@@ -173,18 +173,45 @@ sem configurar nada. Para S3, defina `ACTIVE_STORAGE_SERVICE=amazon` mais
 
 ---
 
-## Específicas deste fork (opcionais)
+## WhatsApp por QR Code (Baileys)
 
-Este fork inclui o provedor WhatsApp Baileys. Só preencha se for usar; exige um
-serviço `baileys-api` separado.
+Com o `docker-compose.coolify-teste.yaml` o serviço `baileys-api` já vem
+declarado e conectado. **A única variável que você cadastra é a chave:**
 
 | Variável | Secreta? | Observação |
 |---|---|---|
-| `BAILEYS_PROVIDER_DEFAULT_URL` | não | URL do baileys-api. O default do `.env.example` é `http://localhost:3025`, que **não** vale dentro do container |
-| `BAILEYS_PROVIDER_DEFAULT_API_KEY` | **sim** | Chave do baileys-api |
-| `BAILEYS_PROVIDER_DEFAULT_CLIENT_NAME` | não | Ex.: `Chatwoot` |
-| `WHATSAPP_GROUPS_ENABLED` | não | `false` por padrão |
-| `BAILEYS_WHATSAPP_GROUPS_ENABLED` | não | `false` por padrão |
+| `BAILEYS_API_KEY` | **sim** | Qualquer string longa e aleatória, inventada por você. O serviço a cria no primeiro boot e o Rails a usa para autenticar |
+| `BAILEYS_CLIENT_NAME` | não | Opcional. Aparece como nome do dispositivo no WhatsApp. Padrão: `Chatwoot Focoh` |
+| `BAILEYS_WHATSAPP_GROUPS_ENABLED` | não | Opcional, `false` por padrão |
+
+Gere a chave com:
+
+```
+openssl rand -hex 32
+```
+
+O resto o compose já resolve e você não precisa cadastrar:
+`BAILEYS_PROVIDER_DEFAULT_URL` (fixo em `http://baileys-api:3025`),
+`BAILEYS_PROVIDER_USE_INTERNAL_HOST_URL` e o `NODE_ENV` do serviço.
+
+### Três coisas que quebram isto, e já quebraram
+
+**A versão do `baileys-api` acompanha a do Chatwoot.** Este fork é 4.17.x e o par
+é a **v3.7.2**. A v3.2.0 pareia com o Chatwoot 4.14.x. Trocar uma sem a outra
+quebra o contrato de webhook entre os dois.
+
+**O serviço exige `NODE_ENV=production`.** Fora de produção o logger dele importa
+`pino-caller`, que não está no bundle da imagem, e o container entra em loop de
+restart com `Cannot find package pino-caller`. O compose já define isso — se você
+escrever o seu próprio, não esqueça.
+
+**A sessão pareada mora no Redis**, na chave
+`@baileys-api:connections:<numero>:authState`, e não em disco. Perder o volume do
+Redis é perder o pareamento e ter de ler o QR de novo. Para migrar de VPS sem
+reparear, copie essa chave — com o serviço antigo **derrubado antes**, porque o
+WhatsApp admite uma conexão por sessão e dois serviços no ar com a mesma
+credencial a invalidam.
+
 
 ---
 
@@ -202,8 +229,8 @@ Mais, para o Kanban Clínico funcionar:
 
 ```
 FOCOH_SUPABASE_JWT_SECRET
-VITE_FOCOH_SUPABASE_URL          (Build Variable)
-VITE_FOCOH_SUPABASE_ANON_KEY     (Build Variable)
+FOCOH_SUPABASE_URL
+FOCOH_SUPABASE_ANON_KEY
 ```
 
 `FORCE_SSL=true` só **depois** que o certificado estiver emitido.

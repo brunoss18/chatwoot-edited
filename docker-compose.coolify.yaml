@@ -17,9 +17,9 @@
 # upstream usa fase de release no Procfile). Rodar `db:chatwoot_prepare` uma vez
 # é passo manual/pre-deploy — ver `DEPLOY_COOLIFY.md`.
 #
-# As duas VITE_FOCOH_* são BUILD ARGS, não variáveis de runtime: o Vite as
-# grava no bundle durante `assets:precompile`, que acontece no build da imagem.
-# No Coolify, marque as duas como "Build Variable".
+# As FOCOH_SUPABASE_URL e FOCOH_SUPABASE_ANON_KEY são de RUNTIME desde o commit
+# 9e1e6464de: o board as lê de `window.chatwootConfig`, montado pelo Rails a cada
+# boot. Cadastre como variável comum no Coolify — mudança vale com um restart.
 # =============================================================================
 
 # Bloco compartilhado. É um campo de extensão `x-`, não um serviço: se fosse um
@@ -31,11 +31,6 @@ x-chatwoot-base: &chatwoot-base
     dockerfile: docker/Dockerfile
     args:
       RAILS_ENV: production
-      # Vazias por padrão: imagem buildada sem elas sobe com o board dizendo
-      # "não configurado", em vez de aparecer vazio e parecer clínica sem
-      # pacientes internados.
-      VITE_FOCOH_SUPABASE_URL: ${VITE_FOCOH_SUPABASE_URL:-}
-      VITE_FOCOH_SUPABASE_ANON_KEY: ${VITE_FOCOH_SUPABASE_ANON_KEY:-}
   # Mesma tag nos dois serviços: a imagem é construída uma vez e reaproveitada.
   image: chatwoot-focoh:latest
   environment:
