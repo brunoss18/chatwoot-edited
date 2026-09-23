@@ -1,4 +1,8 @@
 module Whatsapp::IncomingMessageServiceHelpers
+  # Quanto um evento espera pelo lock do contato antes de desistir. Valor do
+  # fork de origem.
+  CONTACT_LOCK_WAIT = 5.seconds
+
   def download_attachment_file(attachment_payload)
     Down.download(inbox.channel.media_url(attachment_payload[:id]), headers: inbox.channel.api_headers)
   end
@@ -106,5 +110,22 @@ module Whatsapp::IncomingMessageServiceHelpers
     return false if messages_data.blank?
 
     Whatsapp::MessageDedupLock.new(messages_data.first[:id]).acquire!
+  end
+
+  # Serializa o tratamento de eventos do mesmo contato ou grupo. Os handlers do
+  # Baileys chamam isto em oito pontos — mensagem individual, mensagem de grupo,
+  # stub de grupo, atualizacao de participantes e de grupo. O port trouxe as
+  # chamadas e nao a definicao, entao o primeiro evento de mensagem morria com
+  # NoMethodError assim que o pareamento passava.
+  #
+  # Delega ao mesmo lock de chat que o resto do modulo usa, em vez de abrir uma
+  # segunda familia de chaves no Redis: dois locks distintos para o mesmo chat
+  # nao se enxergam, que e justamente a corrida que este guarda existe para
+  # evitar.
+  def with_contact_lock(phone, wait: CONTACT_LOCK_WAIT, &)
+    raise ArgumentError, 'A block is required for with_contact_lock' unless block_given?
+    return yield if phone.blank?
+
+    Whatsapp::Session::Inbound::Locks.with_chat_lock(inbox, phone, wait: wait, &)
   end
 end
