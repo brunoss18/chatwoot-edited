@@ -31,8 +31,12 @@ x-chatwoot-base: &chatwoot-base
     # Declaradas explicitamente: o Coolify 4.3 só faz substituição de ${VAR} no
     # arquivo, não injeta as variáveis do painel dentro dos serviços. Sem isto o
     # container sobe sem POSTGRES_HOST e trava no `pg_isready` do entrypoint.
-    SECRET_KEY_BASE: ${SECRET_KEY_BASE:?defina SECRET_KEY_BASE}
-    FRONTEND_URL: ${FRONTEND_URL:?defina FRONTEND_URL}
+    # E sem `${VAR:?mensagem}`: o Coolify lê essa forma e cria a variável no
+    # painel JÁ COM A MENSAGEM como valor. O container então sobe com
+    # SECRET_KEY_BASE="defina SECRET_KEY_BASE" — uma proteção que, aqui, produz
+    # exatamente o erro que ela existia para evitar.
+    SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+    FRONTEND_URL: ${FRONTEND_URL}
     RAILS_LOG_TO_STDOUT: ${RAILS_LOG_TO_STDOUT:-true}
     RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
     SIDEKIQ_CONCURRENCY: ${SIDEKIQ_CONCURRENCY:-10}
@@ -40,12 +44,12 @@ x-chatwoot-base: &chatwoot-base
     FORCE_SSL: ${FORCE_SSL:-false}
     ACTIVE_STORAGE_SERVICE: ${ACTIVE_STORAGE_SERVICE:-local}
     # --- Banco e fila: EXTERNOS neste arquivo, sem default -------------------
-    POSTGRES_HOST: ${POSTGRES_HOST:?defina POSTGRES_HOST}
+    POSTGRES_HOST: ${POSTGRES_HOST}
     POSTGRES_PORT: ${POSTGRES_PORT:-5432}
     POSTGRES_DATABASE: ${POSTGRES_DATABASE:-chatwoot_production}
-    POSTGRES_USERNAME: ${POSTGRES_USERNAME:?defina POSTGRES_USERNAME}
-    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}
-    REDIS_URL: ${REDIS_URL:?defina REDIS_URL}
+    POSTGRES_USERNAME: ${POSTGRES_USERNAME}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    REDIS_URL: ${REDIS_URL}
     REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     # --- E-mail ---------------------------------------------------------------
     MAILER_SENDER_EMAIL: ${MAILER_SENDER_EMAIL:-}
@@ -63,7 +67,7 @@ x-chatwoot-base: &chatwoot-base
     # --- WhatsApp via Baileys -------------------------------------------------
     BAILEYS_PROVIDER_DEFAULT_URL: http://baileys-api:3025
     BAILEYS_PROVIDER_USE_INTERNAL_HOST_URL: "true"
-    BAILEYS_PROVIDER_DEFAULT_API_KEY: ${BAILEYS_API_KEY:?defina BAILEYS_API_KEY}
+    BAILEYS_PROVIDER_DEFAULT_API_KEY: ${BAILEYS_API_KEY}
     BAILEYS_PROVIDER_DEFAULT_CLIENT_NAME: ${BAILEYS_CLIENT_NAME:-Chatwoot Focoh}
     BAILEYS_WHATSAPP_GROUPS_ENABLED: ${BAILEYS_WHATSAPP_GROUPS_ENABLED:-false}
     WHATSAPP_GROUPS_ENABLED: ${WHATSAPP_GROUPS_ENABLED:-false}
@@ -99,7 +103,7 @@ services:
       # Obrigatório: fora de produção o logger importa `pino-caller`, ausente da
       # imagem, e o container entra em loop de restart.
       NODE_ENV: production
-      BAILEYS_PROVIDER_DEFAULT_API_KEY: ${BAILEYS_API_KEY:?defina BAILEYS_API_KEY}
+      BAILEYS_PROVIDER_DEFAULT_API_KEY: ${BAILEYS_API_KEY}
       BAILEYS_API_LOG_LEVEL: ${BAILEYS_API_LOG_LEVEL:-info}
       REDIS_URL: ${REDIS_URL}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
